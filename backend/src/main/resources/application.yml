@@ -1,0 +1,72 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: charge-platform-learning
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-timeout: 10000
+      maximum-pool-size: 10
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  cache:
+    redis:
+      time-to-live: 30s
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+app:
+  demo-data:
+    enabled: false
+  redis:
+    enabled: true
+  rabbit:
+    enabled: true
+    exchange: charge.order.exchange
+    queue: charge.order.completed
+    routing-key: order.completed
+  simulator:
+    enabled: ${SIMULATOR_ENABLED:false}
+    host: ${SIMULATOR_HOST:127.0.0.1}
+    port: ${SIMULATOR_PORT:9100}
+    device-id: ${SIMULATOR_DEVICE_ID:SIM-PILE-001}
+    devices: ${SIMULATOR_DEVICES:}
+    reconnect-delay-ms: ${SIMULATOR_RECONNECT_DELAY_MS:3000}
+    sync-database: ${SIMULATOR_SYNC_DATABASE:false}
+    offline-timeout-ms: ${SIMULATOR_OFFLINE_TIMEOUT_MS:30000}
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-minutes: 120
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: charge-platform-learning
+    description: Charging station operations learning platform
+    version: 0.1.0

@@ -1,0 +1,53 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">正在加载充电桩...</view>
+  <view wx:elif="{{error}}" class="error">{{error}}</view>
+  <block wx:else>
+    <view class="charger-hero" wx:if="{{charger}}">
+      <view class="back-mark" bindtap="goBack">‹</view>
+      <view class="eyebrow">CHARGER OPERATION</view>
+      <view class="title">{{charger.name || charger.code}}</view>
+      <view class="code">{{charger.code}} · {{charger.status === 'ONLINE' ? '在线' : '离线'}}</view>
+    </view>
+    <view class="simulator-panel">
+      <view class="simulator-panel-head"><view><text class="section-kicker">LIVE DEVICE</text><text class="simulator-title">模拟桩实时状态</text></view><text class="simulator-hint">TCP LIVE</text></view>
+      <view wx:if="{{!simulatorDevices.length}}" class="simulator-empty">适配器未启用或暂无设备状态</view>
+      <view wx:for="{{simulatorDevices}}" wx:key="deviceId" class="simulator-device-row">
+        <view class="simulator-device-main"><view class="simulator-device-badge">ϟ</view><view><text class="simulator-device-name">{{item.deviceId}}</text><text class="simulator-device-status"><text class="simulator-dot {{item.connected ? 'online' : ''}}"></text>{{item.statusText}} · {{item.connectorRows.length}} 把枪</text></view></view>
+        <view class="simulator-connectors"><view wx:for="{{item.connectorRows}}" wx:key="connectorId" class="mini-connector {{item.status === 'CHARGING' ? 'charging' : item.status === 'IDLE' ? 'idle' : 'offline'}}"><text>枪{{item.connectorId}} {{item.statusText}}</text><text wx:if="{{item.status === 'CHARGING'}}">{{item.powerKw || 0}} kW · {{item.currentA || 0}} A · {{item.energyKwh || 0}} kWh</text><text wx:else>点击进入操作</text></view></view>
+      </view>
+    </view>
+    <view class="price-card">
+      <view class="price-head"><view><text class="section-kicker">PRICING</text><text class="price-title">当前计费标准</text></view><text class="price-unit">元 / kWh</text></view>
+      <view wx:if="{{!prices.length}}" class="price-empty">暂未配置电价</view>
+      <view wx:for="{{prices}}" wx:key="id" class="price-row"><text>{{item.startTime}} - {{item.endTime}}</text><text><text class="price-number">{{item.electricityPrice}}</text> 电费 + {{item.servicePrice}} 服务费</text></view>
+    </view>
+    <view class="section-head"><view><text class="section-kicker">CONNECTORS</text><text class="section-title">选择充电枪</text></view><text class="section-count">{{connectors.length}} 把</text></view>
+    <view wx:if="{{!connectors.length}}" class="empty">暂无充电枪</view>
+    <view wx:for="{{connectors}}" wx:key="id" class="card connector-card" data-id="{{item.id}}" bindtap="selectConnector">
+      <view class="connector-icon">ϟ</view><view class="connector-info"><text class="connector-name">{{item.name || item.code}}</text><text class="connector-code">{{item.code}} · {{item.ratedPower || '-'}} kW</text></view><text class="connector-status {{item.status === 'IDLE' ? 'idle' : item.status === 'CHARGING' ? 'charging' : 'offline'}}">{{item.statusText}}</text>
+    </view>
+    <view wx:if="{{selectedConnector}}" class="start-panel">
+      <view class="panel-title">选择充电套餐 <text bindtap="closeStartPanel">×</text></view>
+      <view class="selected-device">{{selectedConnector.name || selectedConnector.code}} · {{selectedConnector.ratedPower || '-'}} kW</view>
+      <view class="package-list">
+        <view class="package {{selectedPackage === 'FULL' ? 'selected' : ''}}" data-package="FULL" bindtap="choosePackage"><text class="package-name">充满自停</text><text class="package-desc">电量充满或手动结束</text></view>
+        <view class="package {{selectedPackage === '1H' ? 'selected' : ''}}" data-package="1H" bindtap="choosePackage"><text class="package-name">短时补电</text><text class="package-desc">预计充电 1 小时</text></view>
+        <view class="package {{selectedPackage === '2H' ? 'selected' : ''}}" data-package="2H" bindtap="choosePackage"><text class="package-name">日常充电</text><text class="package-desc">预计充电 2 小时</text></view>
+        <view class="package {{selectedPackage === '3H' ? 'selected' : ''}}" data-package="3H" bindtap="choosePackage"><text class="package-name">深度充电</text><text class="package-desc">预计充电 3 小时</text></view>
+        <view class="package {{selectedPackage === 'KWH20' ? 'selected' : ''}}" data-package="KWH20" bindtap="choosePackage"><text class="package-name">按电量充</text><text class="package-desc">目标 20 kWh</text></view>
+        <view class="package {{selectedPackage === 'FAST' ? 'selected' : ''}}" data-package="FAST" bindtap="choosePackage"><text class="package-name">快速补能</text><text class="package-desc">15 分钟体验充电</text></view>
+      </view>
+      <input class="plate-input" value="{{plateNumber}}" placeholder="请输入车牌号" bindinput="onPlateInput" />
+      <button class="primary start-button" loading="{{starting}}" bindtap="startCharging">开始充电</button>
+    </view>
+    <view wx:if="{{activeOrder}}" class="settle-panel">
+      <view class="panel-title">当前订单 <text bindtap="closeSettlePanel">×</text></view>
+      <view class="active-tag">正在充电 · {{activeOrder.orderNo}}</view>
+      <view class="settle-row"><text>车牌号</text><text>{{activeOrder.plateNumber}}</text></view>
+      <view class="settle-row"><text>开始时间</text><text>{{activeOrder.startTime}}</text></view>
+      <view class="muted settle-tip">测试模式下输入本次模拟电量即可结单，系统会自动计算电费和服务费。</view>
+      <input class="plate-input" type="digit" value="{{energyKwh}}" bindinput="onEnergyInput" />
+      <button class="primary start-button" loading="{{settling}}" bindtap="settleOrder">结束充电并结单</button>
+    </view>
+  </block>
+</view>

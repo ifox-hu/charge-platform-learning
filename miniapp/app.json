@@ -1,0 +1,22 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/station-detail/station-detail",
+    "pages/charger-detail/charger-detail",
+    "pages/login/login",
+    "pages/current-order/current-order"
+  ],
+  "window": {
+    "navigationBarTitleText": "充电站",
+    "navigationBarBackgroundColor": "#10241c",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f2f5f1"
+  },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "用于显示附近充电站"
+    }
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

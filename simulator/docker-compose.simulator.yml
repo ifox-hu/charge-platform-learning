@@ -1,0 +1,39 @@
+services:
+  virtual-charger-001:
+    image: centos7-jdk17:latest
+    pull_policy: never
+    container_name: charge-simulator-001
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-001 -Dsimulator.connectors=2"
+    volumes:
+      - ./target/charge-platform-simulator-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+    command: ["java", "-jar", "/app/app.jar"]
+    ports:
+      - "9100:9100"
+
+  virtual-charger-002:
+    image: centos7-jdk17:latest
+    pull_policy: never
+    container_name: charge-simulator-002
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-002 -Dsimulator.connectors=2"
+    volumes:
+      - ./target/charge-platform-simulator-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+    command: ["java", "-jar", "/app/app.jar"]
+    ports:
+      - "9101:9100"
+
+  virtual-charger-003:
+    image: centos7-jdk17:latest
+    pull_policy: never
+    container_name: charge-simulator-003
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-003 -Dsimulator.connectors=4"
+    volumes:
+      - ./target/charge-platform-simulator-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+    command: ["java", "-jar", "/app/app.jar"]
+    ports:
+      - "9102:9100"

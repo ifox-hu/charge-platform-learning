@@ -1,0 +1,7 @@
+.login-brand { padding: 70rpx 8rpx 34rpx; }
+.brand-mark { width: 72rpx; height: 72rpx; display: flex; align-items: center; justify-content: center; border-radius: 17rpx; background: #b8ff5e; color: #18321f; font-size: 46rpx; font-weight: 800; margin-bottom: 22rpx; }
+.eyebrow { color: #69a83c; font-size: 19rpx; font-weight: 700; letter-spacing: 3rpx; }
+.title { font-size: 38rpx; font-weight: 700; margin-bottom: 12rpx; color: #183e2e; }
+.subtitle { color: #7d8c85; font-size: 24rpx; margin-bottom: 32rpx; }
+.input { border: 1rpx solid #d6dfda; border-radius: 12rpx; padding: 22rpx 18rpx; margin-bottom: 20rpx; background: #fafcfb; }
+.hint { margin-top: 24rpx; line-height: 1.6; }

@@ -1,0 +1,24 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">正在加载订单...</view>
+  <view wx:elif="{{error}}" class="error">{{error}}</view>
+  <block wx:elif="{{order}}">
+    <view class="order-hero {{order.status === 'CHARGING' ? 'active' : 'done'}}">
+      <view class="eyebrow">CURRENT ORDER</view>
+      <view class="order-status">{{order.status === 'CHARGING' ? '正在充电' : '充电已完成'}}</view>
+      <view class="order-no">{{order.orderNo}}</view>
+    </view>
+    <view class="card order-card">
+      <view class="row"><text>车牌号</text><text class="value">{{order.plateNumber}}</text></view>
+      <view class="row"><text>充电套餐</text><text class="value">{{packageLabel}}</text></view>
+      <view class="row"><text>开始时间</text><text class="value">{{order.startTime}}</text></view>
+      <view class="row"><text>充电电量</text><text class="value">{{order.energyKwh || '0'}} kWh</text></view>
+      <view wx:if="{{order.status === 'CHARGING'}}" class="simulation-box"><view class="simulation-head"><text>模拟充电进度</text><text>{{progress}}%</text></view><progress percent="{{progress}}" activeColor="#69a83c" backgroundColor="#e0e7e2" stroke-width="8" /><view class="simulation-meta"><text>{{energyKwh}} / {{targetEnergy}} kWh</text><text>{{remainingLabel}}</text></view><view class="simulator-link"><text class="simulator-link-dot {{simulatorCharging ? 'active' : ''}}"></text><text>{{simulatorCharging === null ? '正在连接模拟桩...' : simulatorCharging ? 'TCP 模拟桩充电中' : '等待模拟桩充电'}}</text><text wx:if="{{simulatorCharging}}">{{simulatorPowerKw}} kW · {{simulatorCurrentA}} A · 实测 {{simulatorEnergyKwh}} kWh</text></view></view>
+      <view wx:if="{{order.status === 'COMPLETED'}}" class="amount">￥{{order.totalAmount}}</view>
+    </view>
+    <view wx:if="{{order.status === 'CHARGING'}}" class="card stop-card">
+      <view class="section-title">正在充电</view>
+      <view class="muted">当前按套餐模拟充电，完成后会自动结单。你也可以提前结束本次充电。</view>
+      <button class="secondary" loading="{{stopping}}" bindtap="stopCharging">提前结束并计费</button>
+    </view>
+  </block>
+</view>

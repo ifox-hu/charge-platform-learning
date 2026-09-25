@@ -1,0 +1,23 @@
+app:
+  jwt:
+    secret: test-secret-for-jwt-signing-only
+    expiration-minutes: 30
+  redis:
+    enabled: false
+  rabbit:
+    enabled: false
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:charge_platform_test;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: never
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration

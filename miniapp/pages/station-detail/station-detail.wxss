@@ -1,0 +1,40 @@
+.station-hero { background: #173428; border-radius: 16rpx; padding: 30rpx; color: #fff; }
+.back-mark { color: #b8ff5e; font-size: 52rpx; line-height: 28rpx; margin-bottom: 32rpx; }
+.eyebrow { color: #b8ff5e; font-size: 19rpx; font-weight: 700; letter-spacing: 3rpx; }
+.title { font-size: 42rpx; font-weight: 700; margin: 14rpx 0; }
+.address { color: #bed0c7; font-size: 24rpx; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.address-dot { display: inline-block; width: 8rpx; height: 8rpx; margin-right: 10rpx; border-radius: 50%; background: #b8ff5e; vertical-align: middle; }
+.station-status { display: inline-block; margin-top: 22rpx; color: #42612d; background: #b8ff5e; padding: 7rpx 14rpx; border-radius: 20rpx; font-size: 21rpx; font-weight: 700; }
+.station-summary { display: flex; gap: 54rpx; margin-top: 30rpx; padding-top: 24rpx; border-top: 1rpx solid #35604c; }
+.station-summary view { display: flex; align-items: baseline; gap: 10rpx; }
+.station-summary text { font-size: 38rpx; font-weight: 700; color: #b8ff5e; }
+.station-summary label { color: #9eb2aa; font-size: 22rpx; }
+.price-card { background: #fff; border: 1rpx solid #e0e7e2; border-radius: 16rpx; padding: 26rpx 28rpx; margin-top: 20rpx; box-shadow: 0 8rpx 28rpx rgba(26,57,43,.04); }
+.price-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 18rpx; }
+.price-title { display: block; font-size: 30rpx; font-weight: 700; }
+.price-unit { color: #7d8c85; font-size: 21rpx; }
+.price-row { display: flex; justify-content: space-between; gap: 12rpx; padding: 16rpx 0; border-top: 1rpx solid #edf1ef; color: #526159; font-size: 22rpx; }
+.price-number { color: #4b872f; font-weight: 700; }
+.price-empty { color: #9aa69f; font-size: 23rpx; padding: 12rpx 0; }
+.section-head { display: flex; justify-content: space-between; align-items: flex-end; margin: 36rpx 4rpx 18rpx; }
+.section-kicker { display: block; color: #69a83c; font-size: 18rpx; font-weight: 700; letter-spacing: 3rpx; margin-bottom: 6rpx; }
+.section-title { display: block; font-size: 32rpx; font-weight: 700; }
+.section-count { color: #7d8c85; font-size: 23rpx; }
+.charger-head { display: flex; align-items: center; justify-content: space-between; }
+.charger-code { display: block; color: #69a83c; font-size: 19rpx; letter-spacing: 1rpx; }
+.charger-title { display: block; margin-top: 6rpx; font-size: 31rpx; font-weight: 700; }
+.charger-status { color: #3d7735; background: #e8f4e5; padding: 6rpx 12rpx; border-radius: 20rpx; font-size: 20rpx; font-weight: 700; }
+.connector { border-top: 1rpx solid #edf1ef; margin-top: 22rpx; padding-top: 20rpx; display: flex; justify-content: space-between; align-items: center; font-size: 27rpx; }
+.charger-foot { display: flex; justify-content: space-between; margin-top: 22rpx; padding-top: 18rpx; border-top: 1rpx solid #edf1ef; color: #7d8c85; font-size: 23rpx; }
+.enter { color: #69a83c; }
+.power { color: #7d8c85; font-size: 23rpx; margin-left: 14rpx; }
+.connector-status { font-size: 21rpx; font-weight: 700; padding: 7rpx 14rpx; border-radius: 20rpx; }
+.idle { color: #3d7735; background: #e8f4e5; }
+.charging { color: #2467a0; background: #e4f2ff; }
+.offline { color: #9a4844; background: #f3e8e7; }
+.start-panel { position: fixed; left: 24rpx; right: 24rpx; bottom: 24rpx; z-index: 5; padding: 28rpx; border-radius: 16rpx; background: #fff; border: 1rpx solid #e0e7e2; box-shadow: 0 -10rpx 40rpx rgba(26,57,43,.16); }
+.panel-title { display: flex; justify-content: space-between; font-size: 31rpx; font-weight: 700; color: #183e2e; }
+.panel-title text { color: #7d8c85; font-size: 40rpx; line-height: 28rpx; }
+.selected-device { margin-top: 14rpx; color: #69a83c; font-size: 24rpx; }
+.plate-input { margin-top: 22rpx; border: 1rpx solid #d6dfda; border-radius: 12rpx; padding: 20rpx 18rpx; background: #fafcfb; }
+.start-button { margin-top: 22rpx; }

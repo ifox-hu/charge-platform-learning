@@ -1,0 +1,1 @@
+{ "desc": "充电桩小程序站点浏览", "rules": [{ "action": "allow", "page": "*" }] }

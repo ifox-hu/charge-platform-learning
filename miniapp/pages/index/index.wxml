@@ -1,0 +1,38 @@
+<view class="page">
+  <view class="hero">
+    <view class="hero-top">
+      <view class="brand-mark">ϟ</view>
+      <view class="account" bindtap="openLogin">
+        <text>{{displayName || '登录'}}</text>
+        <text class="account-arrow">›</text>
+      </view>
+    </view>
+    <view class="eyebrow">CHARGE NETWORK</view>
+    <view class="hero-title">找到可用充电站</view>
+    <view class="hero-copy">查看站点和设备状态，快速选择空闲充电枪</view>
+    <view class="hero-stats">
+      <view><text class="stat-value">{{stationCount}}</text><text class="stat-label">全部站点</text></view>
+      <view class="stat-divider"></view>
+      <view><text class="stat-value accent">{{operatingCount}}</text><text class="stat-label">运营中</text></view>
+    </view>
+  </view>
+  <view class="map-card"><view class="map-card-head"><view><text class="section-kicker">LIVE LOCATION</text><text class="section-title">附近充电站</text></view><view class="map-location-actions"><text class="map-location-label">{{locationLabel}}</text><text class="locate-button" bindtap="requestLocationPermission">重新定位</text></view></view><map class="station-map" longitude="{{longitude}}" latitude="{{latitude}}" scale="12" markers="{{markers}}" bindmarkertap="onMarkerTap"></map></view>
+  <view class="section-head">
+    <view><text class="section-kicker">STATIONS</text><text class="section-title">充电站列表</text></view>
+    <text class="section-count">{{stationCount}} 个站点</text>
+  </view>
+  <view wx:if="{{loading}}" class="empty">正在加载充电站...</view>
+  <view wx:elif="{{error}}" class="error">{{error}}</view>
+  <view wx:elif="{{!stations.length}}" class="empty">暂无充电站</view>
+  <view wx:else>
+    <view wx:for="{{stations}}" wx:key="id" class="card station" data-id="{{item.id}}" bindtap="openStation">
+      <view class="station-icon">ϟ</view>
+      <view class="station-content">
+        <view class="station-head"><text class="station-name">{{item.name}}</text><text class="status {{item.status === 'OPERATING' ? 'online' : 'closed'}}">{{item.statusText}}</text></view>
+        <view class="address"><text class="address-dot"></text>{{item.address || '暂无地址'}}</view>
+        <view class="description">{{item.description || '欢迎使用本充电站'}}</view>
+      </view>
+      <view class="enter">›</view>
+    </view>
+  </view>
+</view>

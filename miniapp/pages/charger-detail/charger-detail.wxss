@@ -1,0 +1,63 @@
+.charger-hero { background: #173428; border-radius: 16rpx; padding: 30rpx; color: #fff; }
+.back-mark { color: #b8ff5e; font-size: 52rpx; line-height: 28rpx; margin-bottom: 32rpx; }
+.eyebrow, .section-kicker { color: #b8ff5e; font-size: 19rpx; font-weight: 700; letter-spacing: 3rpx; }
+.title { font-size: 42rpx; font-weight: 700; margin-top: 14rpx; }
+.code { color: #bed0c7; font-size: 24rpx; margin-top: 14rpx; }
+.simulator-panel { background: #eef8e9; border: 1rpx solid #d8ebcc; border-radius: 16rpx; padding: 24rpx 28rpx; margin-top: 20rpx; }
+.simulator-panel-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14rpx; }
+.simulator-title { display: block; margin-top: 6rpx; color: #183e2e; font-size: 29rpx; font-weight: 700; }
+.simulator-hint { color: #5c8d42; font-size: 20rpx; font-weight: 700; letter-spacing: 2rpx; }
+.simulator-empty { color: #7d8c85; font-size: 22rpx; padding: 12rpx 0; }
+.simulator-device-row { display: block; padding: 18rpx 0; border-top: 1rpx solid #dcebd5; }
+.simulator-device-main { display: flex; align-items: center; gap: 12rpx; margin-bottom: 12rpx; }
+.simulator-device-badge { width: 48rpx; height: 48rpx; display: flex; align-items: center; justify-content: center; border-radius: 12rpx; background: #183e2e; color: #b8ff5e; font-size: 30rpx; font-weight: 800; }
+.simulator-dot { width: 14rpx; height: 14rpx; border-radius: 50%; background: #d26b62; }
+.simulator-dot.online { background: #75c654; box-shadow: 0 0 0 5rpx #dff2d5; }
+.simulator-device-name, .simulator-device-status { display: block; }
+.simulator-device-name { color: #183e2e; font-size: 23rpx; font-weight: 700; }
+.simulator-device-status { display: flex; align-items: center; gap: 8rpx; color: #7d8c85; font-size: 20rpx; margin-top: 4rpx; }
+.simulator-device-status .simulator-dot { display: inline-block; width: 10rpx; height: 10rpx; }
+.simulator-connectors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8rpx; }
+.mini-connector { display: flex; flex-direction: column; gap: 3rpx; padding: 6rpx 9rpx; border-radius: 16rpx; font-size: 18rpx; }
+.mini-connector text:last-child { font-size: 16rpx; opacity: .78; }
+.mini-connector.idle { color: #3d7735; background: #dff2d5; }
+.mini-connector.charging { color: #2467a0; background: #dceeff; }
+.mini-connector.offline { color: #9a4844; background: #f3e8e7; }
+.price-card { background: #fff; border: 1rpx solid #e0e7e2; border-radius: 16rpx; padding: 26rpx 28rpx; margin-top: 20rpx; box-shadow: 0 8rpx 28rpx rgba(26,57,43,.04); }
+.price-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 18rpx; }
+.section-kicker { display: block; color: #69a83c; font-size: 18rpx; margin-bottom: 6rpx; }
+.price-title { display: block; font-size: 30rpx; font-weight: 700; }
+.price-unit, .section-count { color: #7d8c85; font-size: 22rpx; }
+.price-row { display: flex; justify-content: space-between; gap: 12rpx; padding: 16rpx 0; border-top: 1rpx solid #edf1ef; color: #526159; font-size: 22rpx; }
+.price-number { color: #4b872f; font-weight: 700; }
+.price-empty { color: #9aa69f; font-size: 23rpx; padding: 12rpx 0; }
+.section-head { display: flex; justify-content: space-between; align-items: flex-end; margin: 36rpx 4rpx 18rpx; }
+.section-kicker { color: #69a83c; }
+.section-title { display: block; font-size: 32rpx; font-weight: 700; margin-top: 6rpx; }
+.connector-card { display: flex; align-items: center; gap: 18rpx; }
+.connector-icon { width: 62rpx; height: 62rpx; display: flex; align-items: center; justify-content: center; border-radius: 13rpx; background: #e9f9df; color: #4b872f; font-size: 35rpx; }
+.connector-info { flex: 1; min-width: 0; }
+.connector-name, .connector-code { display: block; }
+.connector-name { font-size: 29rpx; font-weight: 700; }
+.connector-code { color: #7d8c85; font-size: 22rpx; margin-top: 8rpx; }
+.connector-status { font-size: 21rpx; font-weight: 700; padding: 7rpx 14rpx; border-radius: 20rpx; }
+.idle { color: #3d7735; background: #e8f4e5; }
+.charging { color: #2467a0; background: #e4f2ff; }
+.offline { color: #9a4844; background: #f3e8e7; }
+.start-panel { position: fixed; left: 24rpx; right: 24rpx; bottom: 24rpx; z-index: 5; padding: 28rpx; border-radius: 16rpx; background: #fff; border: 1rpx solid #e0e7e2; box-shadow: 0 -10rpx 40rpx rgba(26,57,43,.16); }
+.package-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin-top: 20rpx; max-height: 310rpx; overflow-y: auto; }
+.package { padding: 16rpx; border: 1rpx solid #dce5df; border-radius: 12rpx; background: #fafcfb; }
+.package.selected { border-color: #69a83c; background: #eff9e9; box-shadow: 0 0 0 2rpx #dff2d3; }
+.package-name, .package-desc { display: block; }
+.package-name { color: #183e2e; font-size: 25rpx; font-weight: 700; }
+.package-desc { color: #7d8c85; font-size: 20rpx; margin-top: 7rpx; }
+.panel-title { display: flex; justify-content: space-between; font-size: 31rpx; font-weight: 700; color: #183e2e; }
+.panel-title text { color: #7d8c85; font-size: 40rpx; line-height: 28rpx; }
+.selected-device { margin-top: 14rpx; color: #69a83c; font-size: 24rpx; }
+.plate-input { margin-top: 22rpx; border: 1rpx solid #d6dfda; border-radius: 12rpx; padding: 20rpx 18rpx; background: #fafcfb; }
+.start-button { margin-top: 22rpx; }
+.settle-panel { position: fixed; left: 24rpx; right: 24rpx; bottom: 24rpx; z-index: 6; padding: 28rpx; border-radius: 16rpx; background: #fff; border: 1rpx solid #e0e7e2; box-shadow: 0 -10rpx 40rpx rgba(26,57,43,.16); }
+.active-tag { display: inline-block; margin-top: 14rpx; padding: 7rpx 14rpx; border-radius: 20rpx; color: #2467a0; background: #e4f2ff; font-size: 21rpx; }
+.settle-row { display: flex; justify-content: space-between; padding: 16rpx 0; border-bottom: 1rpx solid #edf1ef; color: #7d8c85; font-size: 24rpx; }
+.settle-row text:last-child { color: #1f3028; }
+.settle-tip { display: block; margin-top: 18rpx; line-height: 1.5; }

@@ -1,0 +1,8 @@
+page { background: #f2f5f1; color: #16211c; font-family: Arial, "Microsoft YaHei", sans-serif; }
+.page { padding: 24rpx; padding-bottom: 56rpx; }
+.card { background: #fff; border: 1rpx solid #e0e7e2; border-radius: 16rpx; padding: 28rpx; margin-bottom: 20rpx; box-shadow: 0 8rpx 28rpx rgba(26, 57, 43, .04); }
+.muted { color: #7d8c85; font-size: 24rpx; }
+.error { color: #9a4844; background: #f8eeee; border: 1rpx solid #eedbd9; padding: 22rpx; border-radius: 14rpx; }
+.empty { text-align: center; padding: 96rpx 20rpx; color: #7d8c85; font-size: 26rpx; }
+.primary { background: #183e2e; color: #fff; border-radius: 14rpx; font-weight: 600; }
+.primary::after { border: 0; }

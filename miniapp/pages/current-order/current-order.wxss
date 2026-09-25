@@ -1,0 +1,23 @@
+.order-hero { padding: 34rpx 30rpx; border-radius: 16rpx; color: #fff; }
+.order-hero.active { background: #173428; }
+.order-hero.done { background: #315d40; }
+.eyebrow { color: #b8ff5e; font-size: 19rpx; font-weight: 700; letter-spacing: 3rpx; }
+.order-status { margin-top: 18rpx; font-size: 42rpx; font-weight: 700; }
+.order-no { margin-top: 14rpx; color: #bed0c7; font-size: 23rpx; }
+.order-card { margin-top: 20rpx; }
+.row { display: flex; justify-content: space-between; padding: 20rpx 0; border-bottom: 1rpx solid #edf1ef; color: #7d8c85; font-size: 25rpx; }
+.row:last-of-type { border-bottom: 0; }
+.value { color: #1f3028; }
+.amount { margin-top: 25rpx; color: #4b872f; font-size: 46rpx; font-weight: 700; text-align: right; }
+.simulation-box { margin-top: 24rpx; padding-top: 20rpx; border-top: 1rpx solid #edf1ef; }
+.simulation-head, .simulation-meta { display: flex; justify-content: space-between; color: #526159; font-size: 23rpx; }
+.simulation-head text:last-child { color: #4b872f; font-weight: 700; }
+.simulation-meta { margin-top: 12rpx; color: #7d8c85; font-size: 21rpx; }
+.simulator-link { display: flex; align-items: center; gap: 8rpx; margin-top: 16rpx; color: #7d8c85; font-size: 20rpx; }
+.simulator-link text:last-child { margin-left: auto; }
+.simulator-link-dot { width: 12rpx; height: 12rpx; border-radius: 50%; background: #d26b62; }
+.simulator-link-dot.active { background: #75c654; box-shadow: 0 0 0 4rpx #dff2d5; }
+.stop-card { margin-top: 20rpx; }
+.section-title { font-size: 31rpx; font-weight: 700; margin-bottom: 12rpx; }
+.secondary { margin-top: 24rpx; color: #183e2e; background: #e8f4e5; border-radius: 12rpx; font-weight: 700; }
+.secondary::after { border: 0; }
