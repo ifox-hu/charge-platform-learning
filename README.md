@@ -12,19 +12,11 @@
 
 ## 开发文档
 
-从 **[完整开发手册](docs/README.md)** 开始。手册包含具体命令、配置表、请求示例、部署步骤和故障排查：
+从 **[统一开发手册](docs/developer-guide.md)** 开始。手册包含具体命令、配置表、请求示例、部署步骤和故障排查：
 
 | 主题 | 文档 |
 |---|---|
 | 完整开发手册（统一目录） | [开发手册](docs/developer-guide.md) |
-| 新库建表或已有库接入、第一次启动 | [快速开始](docs/getting-started.md) |
-| 理解请求链路和模块 | [项目结构与架构](docs/project-structure.md) |
-| IDEA、Vite、微信开发者工具 | [本地开发](docs/local-development.md) |
-| 三台模拟桩与充电结算 | [模拟充电桩联调](docs/simulator.md) |
-| 在线/离线 Compose、HTTPS、更新发布 | [Docker 部署](docs/deployment.md) |
-| REST、JWT、WebSocket、RabbitMQ | [接口与实时通信](docs/api-and-realtime.md) |
-| V1 基础建表、V2~V4 迁移、备份 | [数据库与迁移](docs/database.md) |
-| 无法访问、容器异常、定位问题 | [故障排查](docs/troubleshooting.md) |
 
 ## 目录
 
@@ -46,7 +38,7 @@ docs/       开发手册和增量 SQL
 docker compose -f docker-compose.yml up -d --build
 ```
 
-该版本前端在 `http://localhost:5173`。离线服务器请阅读[Docker 部署](docs/deployment.md)，它使用 `docker-compose.server.yml`、预编译 JAR、前端 `dist` 和 HTTPS 证书。两份 Compose 的用途不同。
+该版本前端在 `http://localhost:5173`。离线服务器请阅读统一开发手册中的 Docker 部署章节，它使用 `docker-compose.server.yml`、预编译 JAR、前端 `dist` 和 HTTPS 证书。两份 Compose 的用途不同。
 
 后端测试：`cd backend && mvn test`；Web 构建：`cd frontend && npm ci && npm run build`。
 

@@ -1,47 +1,17 @@
-# 充电桩运营平台 · 开发手册
+# 充电桩运营平台开发文档
 
-本目录的开发内容已经整合到[统一开发手册](developer-guide.md)。文档按目录覆盖项目概览、首次启动、本地开发、模拟桩、接口、数据库、Docker 部署和故障排查；下面保留模块速览和旧文档入口。
+所有开发说明已整合到[统一开发手册](developer-guide.md)。
 
-## 统一入口
+统一手册包含：
 
-请优先阅读[统一开发手册](developer-guide.md)。后续新增的开发说明也集中维护在该文件中。
+- 项目概览、模块结构和完整请求链路
+- 本地 IDEA、Maven、Vite 和微信开发者工具启动
+- 三台模拟桩、START/STOP 和真实时间倍率联调
+- REST、JWT、WebSocket、Redis、RabbitMQ 和审计接口
+- V1 基础建表、V2～V4 迁移、备份与恢复
+- 在线/离线 Docker Compose、HTTPS 和服务器更新
+- RabbitMQ、Nginx、定位、小程序和 WebSocket 故障排查
 
-> **项目定位**：Java 17 + Spring Boot 3.5 的学习型运营平台。包括 Web 管理端、微信小程序、三台 TCP 模拟桩、MySQL、Redis 和 RabbitMQ。全新库可按 `docs/db/V1~V4` 建表；已有库只补缺失迁移。演示账号和设备数据在可选的 `docs/demo_seed.sql`，不会自动执行。
-
-## 5 分钟了解系统
-
-| 模块 | 能做什么 | 主要入口 |
-|---|---|---|
-| 运营看板 | 站点、设备、订单汇总；Redis 缓存 30 秒 | `GET /api/dashboard` |
-| 站点/设备 | 编辑站点、桩、枪；设备状态同步 | `/api/stations`、`/api/chargers`、`/api/connectors` |
-| 电价/订单 | 分时电价、启动/停止、按实际电量计费、测试订单归档 | `/api/price-periods`、`/api/orders` |
-| 模拟桩 | 三台设备通过 TCP 上报状态、电量、电压、电流 | `/api/simulator/status` |
-| 实时推送 | WebSocket 广播设备状态，断线后前端轮询兜底 | `/ws/status` |
-| 审计/消息 | 写操作审计，订单完成事件及死信队列 | `/api/audit-logs`、RabbitMQ |
-
-一次充电的路径：在 Web 或小程序选择空闲枪 → 后端锁定数据库记录并发送 `START` → 模拟桩上报实时电量 → 点击停止发送 `STOP` → 后端按分时电价结算并发出订单完成事件。详见[模拟桩联调](simulator.md)和[接口与实时通信](api-and-realtime.md)。
-
-## 从哪里开始
-
-| 你要做的事 | 阅读 |
-|---|---|
-| 查看完整开发流程和所有章节 | [统一开发手册](developer-guide.md) |
-| 第一次拉取、准备数据库、看到页面 | [快速开始](getting-started.md) |
-| 理解目录、业务链路、数据流 | [项目结构与架构](project-structure.md) |
-| 在 IDEA、Vite、微信开发者工具中改代码 | [本地开发](local-development.md) |
-| 启动三台桩，完成一次充电与结算 | [模拟充电桩联调](simulator.md) |
-| 在线/离线 Compose、HTTPS、更新发布 | [Docker 部署](deployment.md) |
-| 调用接口、查看 WebSocket 和消息队列 | [接口与实时通信](api-and-realtime.md) |
-| V1 建表、V2~V4 迁移、备份与演示数据 | [数据库与迁移](database.md) |
-| 页面白屏、连接拒绝、定位偏差等 | [故障排查](troubleshooting.md) |
-
-已有的[详细启动与联调记录](启动与充电桩联调说明.md)保留了 Windows 和服务器实际操作步骤。
-
-## 运行前必须知道
-
-1. `.env.example` 只是模板。复制为 `.env` 并填写自己的密码和随机 JWT 密钥；不要提交 `.env`、证书、数据库备份或日志。
-2. `docker-compose.yml` 是联网构建版，访问 `http://localhost:5173`；`docker-compose.server.yml` 是使用现有镜像与已编译产物的离线部署版，前端证书需放在 `certs/`，访问 `https://服务器地址`。
-3. Web 地图定位需要 HTTPS 或 `localhost`。微信小程序正式真机请求需要合法 HTTPS 域名，开发者工具可临时关闭域名校验。
-4. 修改后端或模拟桩代码后，要重新打包 JAR 并重建容器；修改 Web 后要重新构建 `frontend/dist`。
+数据库参考脚本位于 `docs/db/`，本地演示数据脚本为 `docs/demo_seed.sql`。旧版分主题文档已移除，避免同一内容多处维护。
 
 [回到仓库首页](../README.md)
