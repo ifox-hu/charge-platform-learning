@@ -16,6 +16,7 @@
 
 | 主题 | 文档 |
 |---|---|
+| 完整开发手册（统一目录） | [开发手册](docs/developer-guide.md) |
 | 新库建表或已有库接入、第一次启动 | [快速开始](docs/getting-started.md) |
 | 理解请求链路和模块 | [项目结构与架构](docs/project-structure.md) |
 | IDEA、Vite、微信开发者工具 | [本地开发](docs/local-development.md) |
