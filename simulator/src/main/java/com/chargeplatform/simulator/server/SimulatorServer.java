@@ -29,8 +29,12 @@ public final class SimulatorServer implements AutoCloseable {
     private ServerSocket serverSocket;
 
     public SimulatorServer(int port, String deviceId, int connectorCount) {
+        this(port, deviceId, connectorCount, 60.0);
+    }
+
+    public SimulatorServer(int port, String deviceId, int connectorCount, double timeScale) {
         this.port = port;
-        this.charger = new VirtualCharger(deviceId, connectorCount);
+        this.charger = new VirtualCharger(deviceId, connectorCount, timeScale);
     }
 
     public void start() throws IOException {

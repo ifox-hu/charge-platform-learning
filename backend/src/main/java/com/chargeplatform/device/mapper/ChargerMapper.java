@@ -8,8 +8,9 @@ import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface ChargerMapper extends BaseMapper<Charger> {
-    @Select("SELECT COALESCE(MAX(id), 0) + 1 FROM charger")
-    Long nextId();
+    @Select("SELECT * FROM charger WHERE code = #{code} LIMIT 1")
+    Charger selectByCode(@Param("code") String code);
+
     @Select("SELECT COUNT(*) > 0 FROM charger WHERE station_id = #{stationId}")
     boolean existsByStationId(@Param("stationId") Long stationId);
 }

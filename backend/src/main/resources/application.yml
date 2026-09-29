@@ -36,6 +36,9 @@ app:
     exchange: charge.order.exchange
     queue: charge.order.completed
     routing-key: order.completed
+    dead-letter-exchange: charge.order.dlx
+    dead-letter-queue: charge.order.completed.dlq
+    dead-letter-routing-key: order.completed.failed
   simulator:
     enabled: ${SIMULATOR_ENABLED:false}
     host: ${SIMULATOR_HOST:127.0.0.1}
@@ -43,8 +46,9 @@ app:
     device-id: ${SIMULATOR_DEVICE_ID:SIM-PILE-001}
     devices: ${SIMULATOR_DEVICES:}
     reconnect-delay-ms: ${SIMULATOR_RECONNECT_DELAY_MS:3000}
-    sync-database: ${SIMULATOR_SYNC_DATABASE:false}
+    sync-database: ${SIMULATOR_SYNC_DATABASE:true}
     offline-timeout-ms: ${SIMULATOR_OFFLINE_TIMEOUT_MS:30000}
+    reconcile-interval-ms: ${SIMULATOR_RECONCILE_INTERVAL_MS:5000}
   jwt:
     secret: ${JWT_SECRET}
     expiration-minutes: 120

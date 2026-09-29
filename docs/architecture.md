@@ -27,7 +27,7 @@ The application uses the MySQL instance configured through environment variables
 
 ## Order completion flow
 
-`ChargeOrderService.stop` locks the charging order, calculates fees across price periods, restores the connector to `IDLE`, and commits the MySQL transaction. Only after commit is `OrderCompletedEvent` sent to RabbitMQ. A Rabbit publish error is logged and isolated because the order is already durable. The listener retries a failed handler three times and rejects the message instead of requeueing forever.
+`ChargeOrderService.stop` locks the charging order, calculates fees across price periods, restores the connector to `IDLE`, and commits the MySQL transaction. Only after commit is `OrderCompletedEvent` sent to RabbitMQ. A Rabbit publish error is logged and isolated because the order is already durable. The listener retries a failed handler three times with exponential backoff. After the final failure, RabbitMQ routes the rejected message to `charge.order.completed.dlq` through `charge.order.dlx` instead of requeueing forever.
 
 ## Configuration overrides
 

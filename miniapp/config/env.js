@@ -1,4 +1,4 @@
 module.exports = {
-  // 真机调试时改成电脑局域网 IP，例如 http://192.168.6.10:8081/api
-  baseUrl: 'http://localhost:8081/api'
+  // 服务器部署地址；开发者工具中需关闭“校验合法域名”才能使用 HTTP IP。
+  baseUrl: 'http://192.168.6.100:8081/api'
 }

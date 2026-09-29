@@ -54,12 +54,8 @@ Page({
   },
   loadSimulatorStatus() {
     if (!this.data.order) return Promise.resolve()
-    return request({ url: '/simulator/status' }).then(fleet => {
-      const devices = Array.isArray(fleet?.devices) ? fleet.devices : fleet?.deviceId ? [fleet] : []
-      const snapshots = devices.flatMap(device => Object.values(device.connectors || {}).map(connector => ({ ...connector, deviceId: device.deviceId, connected: device.connected })))
-      const exact = snapshots.find(connector => connector.connectorId === this.data.order.connectorId)
-      const charging = exact || snapshots.find(connector => connector.status === 'CHARGING')
-      this.setData({ simulatorCharging: Boolean(charging && charging.status === 'CHARGING'), simulatorEnergyKwh: charging?.energyKwh == null ? '0.000' : Number(charging.energyKwh).toFixed(3), simulatorPowerKw: charging?.powerKw == null ? '0.0' : Number(charging.powerKw).toFixed(1), simulatorCurrentA: charging?.currentA == null ? '0.0' : Number(charging.currentA).toFixed(1) })
+    return request({ url: `/orders/${this.orderId}/live` }).then(live => {
+      this.setData({ simulatorCharging: live.status === 'CHARGING', simulatorEnergyKwh: live.energyKwh == null ? '0.000' : Number(live.energyKwh).toFixed(3), simulatorPowerKw: live.powerKw == null ? '0.0' : Number(live.powerKw).toFixed(1), simulatorCurrentA: live.currentA == null ? '0.0' : Number(live.currentA).toFixed(1) })
     }).catch(() => {})
   },
   clearSimulation() {
@@ -69,12 +65,11 @@ Page({
   onUnload() { this.clearSimulation() },
   onHide() { this.clearSimulation() },
   stopCharging() {
-    const energyKwh = Number(this.data.energyKwh)
-    if (!energyKwh || energyKwh <= 0) return wx.showToast({ title: '请输入大于 0 的充电量', icon: 'none' })
     this.clearSimulation()
     this.setData({ stopping: true })
-    request({ url: `/orders/${this.orderId}/stop`, method: 'POST', data: { energyKwh } })
+    request({ url: `/orders/${this.orderId}/stop`, method: 'POST', data: {} })
       .then(order => { this.setData({ order, simulatorCharging: false }); wx.showToast({ title: '充电已结束' }) })
+      .catch(() => this.startSimulation())
       .finally(() => this.setData({ stopping: false }))
   }
 })

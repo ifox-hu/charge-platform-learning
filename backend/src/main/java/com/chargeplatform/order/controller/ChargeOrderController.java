@@ -30,8 +30,13 @@ public class ChargeOrderController {
     }
 
     @PostMapping("/{id}/stop")
-    public ApiResponse<ChargeOrder> stop(@PathVariable Long id, @Valid @RequestBody OrderRequests.Stop request) {
+    public ApiResponse<ChargeOrder> stop(@PathVariable Long id, @Valid @RequestBody(required = false) OrderRequests.Stop request) {
         return ApiResponse.success(service.stop(id, request));
+    }
+
+    @GetMapping("/{id}/live")
+    public ApiResponse<ChargeOrderService.OrderLiveStatus> live(@PathVariable Long id) {
+        return ApiResponse.success(service.live(id));
     }
 
     @GetMapping
@@ -55,5 +60,11 @@ public class ChargeOrderController {
     @GetMapping("/{id}")
     public ApiResponse<ChargeOrder> get(@PathVariable Long id) {
         return ApiResponse.success(service.get(id));
+    }
+
+    @DeleteMapping("/completed-test")
+    public ApiResponse<Void> clearCompletedTestOrders(@RequestBody OrderRequests.Cleanup request) {
+        int count = service.clearCompletedTestOrders(request == null ? null : request.ids());
+        return ApiResponse.message("已归档 " + count + " 条已完成测试订单");
     }
 }

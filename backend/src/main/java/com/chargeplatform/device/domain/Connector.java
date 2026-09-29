@@ -22,8 +22,6 @@ public class Connector {
     public Connector(Long chargerId, String code, String name, Integer ratedPower) {
         this.chargerId = chargerId; this.code = code; this.name = name; this.ratedPower = ratedPower; this.status = "IDLE";
     }
-    public Connector(Long id, Long chargerId, String code, String name, Integer ratedPower) {
-        this.id = id; this.chargerId = chargerId; this.code = code; this.name = name; this.ratedPower = ratedPower; this.status = "IDLE";
-    }
+    public void updateInfo(String code, String name, Integer ratedPower) { this.code = code; this.name = name; this.ratedPower = ratedPower; }
     public void changeStatus(String status) { this.status = status; }
 }

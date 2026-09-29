@@ -25,7 +25,7 @@ Page({
         const number = Number(deviceCode(device).match(/(\d+)$/)?.[1] || 0)
         return { id: `sim-${device.deviceId}`, code: deviceCode(device), name: `${number || 2} 号模拟充电桩`, status: device.connected ? 'ONLINE' : 'OFFLINE', simulatorDeviceId: device.deviceId, connectors: Object.values(device.connectors || {}) }
       })
-      const rows = chargerRows.map((charger, index) => ({ ...charger, simulatorDeviceId: devices[index]?.deviceId || `SIM-PILE-${String(index + 1).padStart(3, '0')}` })).concat(virtualRows)
+      const rows = chargerRows.map((charger, index) => ({ ...charger, simulatorDeviceId: devices.find(device => device.deviceId === `SIM-${charger.code}`)?.deviceId || devices[index]?.deviceId || `SIM-PILE-${String(index + 1).padStart(3, '0')}` })).concat(virtualRows)
       this.setData({ station, chargers: rows, prices: prices || [], chargerCount: rows.length })
       return Promise.all(chargerRows.map(charger => request({ url: `/connectors?chargerId=${charger.id}` })))
     }).then(groups => {

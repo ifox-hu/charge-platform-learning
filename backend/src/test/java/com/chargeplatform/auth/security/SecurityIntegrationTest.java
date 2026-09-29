@@ -15,8 +15,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -88,6 +90,40 @@ class SecurityIntegrationTest {
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.code").value(403))
             .andExpect(jsonPath("$.message").value("当前账号没有操作权限"));
+    }
+
+    @Test
+    void operatorCannotUpdateStation() throws Exception {
+        String token = jwtService.create("operator", "OPERATOR");
+
+        mockMvc.perform(put("/api/stations/1")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"禁止修改\",\"address\":\"测试地址\",\"status\":\"OPERATING\"}"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    void operatorCannotDeleteDevice() throws Exception {
+        String token = jwtService.create("operator", "OPERATOR");
+
+        mockMvc.perform(delete("/api/chargers/1")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    void operatorCannotArchiveOrders() throws Exception {
+        String token = jwtService.create("operator", "OPERATOR");
+
+        mockMvc.perform(delete("/api/orders/completed-test")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"ids\":[1]}"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value(403));
     }
 
     @Test

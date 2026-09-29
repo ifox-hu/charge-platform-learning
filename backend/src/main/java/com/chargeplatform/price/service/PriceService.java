@@ -37,6 +37,22 @@ public class PriceService {
         return prices.selectByStationId(stationId);
     }
 
+    @Transactional
+    public PricePeriod update(Long id, Long stationId, LocalTime startTime, LocalTime endTime,
+                              BigDecimal electricityPrice, BigDecimal servicePrice) {
+        PricePeriod period = prices.selectById(id);
+        if (period == null) throw new BusinessException(404, "电价时段不存在");
+        if (stations.selectById(stationId) == null) throw new BusinessException(404, "充电站不存在");
+        if (!startTime.isBefore(endTime)) throw new BusinessException(400, "开始时间必须早于结束时间");
+        boolean overlap = prices.selectByStationId(stationId).stream()
+            .filter(item -> !item.getId().equals(id))
+            .anyMatch(item -> item.getStartTime().isBefore(endTime) && item.getEndTime().isAfter(startTime));
+        if (overlap) throw new BusinessException(409, "电价时段不能重叠");
+        period.update(startTime, endTime, electricityPrice, servicePrice);
+        prices.updateById(period);
+        return period;
+    }
+
     public void delete(Long id) {
         if (prices.selectById(id) == null) throw new BusinessException(404, "电价时段不存在");
         prices.deleteById(id);

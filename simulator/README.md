@@ -12,7 +12,7 @@
 {"command":"PING"}
 ```
 
-连接建立后先返回 `HELLO`，收到命令后返回 `STATUS`；设备状态包括 `IDLE`、`CHARGING`，并在内存中按秒累加模拟电量。后续接入平台时，平台侧 TCP Adapter 负责把 `STATUS` 转换为订单/设备业务事件。
+连接建立后先返回 `HELLO`，收到命令后返回 `STATUS`；设备状态包括 `IDLE`、`CHARGING`，电量按实际经过时间累计。默认使用 `1x` 真实时间；本地快速测试可通过 `-Dsimulator.time-scale=10` 或环境变量 `SIMULATOR_TIME_SCALE=10` 临时加速。
 
 ## 运行
 
@@ -20,10 +20,10 @@
 cd E:\充电桩\charge-platform-learning\simulator
 mvn "-Dmaven.repo.local=D:\Maven3.9.16\apache-maven-3.9.16\mvn_repo" test
 mvn "-Dmaven.repo.local=D:\Maven3.9.16\apache-maven-3.9.16\mvn_repo" package
-java -Dsimulator.device-id=SIM-PILE-001 -Dsimulator.connectors=2 -jar target/charge-platform-simulator-0.1.0-SNAPSHOT.jar
+java -Dsimulator.device-id=SIM-PILE-001 -Dsimulator.connectors=2 -Dsimulator.time-scale=60 -jar target/charge-platform-simulator-0.1.0-SNAPSHOT.jar
 ```
 
-当前还没有让 Spring Boot 后端主动连接该 TCP 服务，这是下一阶段的“设备接入适配器”。不需要现在修改 Docker；完成本地协议和适配器后，再制作 Dockerfile 并用多个容器模拟多台充电桩。
+Spring Boot 后端会通过 TCP Adapter 连接该服务，读取实时状态并确认 START/STOP 命令。模拟器仍然不直接访问 MySQL。
 
 TCP 集成测试覆盖真实 `ServerSocket`：随机端口启动、连接握手、`START` 命令和 `STATUS` 响应。下一阶段进入容器编排时，会保留同一套协议和状态机。
 
@@ -62,7 +62,7 @@ SIM-PILE-003 -> 宿主机 9102
 
 ```powershell
 $env:SIMULATOR_ENABLED="true"
-$env:SIMULATOR_SYNC_DATABASE="false"
+$env:SIMULATOR_SYNC_DATABASE="true"
 ```
 
 平台连接状态可通过管理员登录后访问：
@@ -71,4 +71,4 @@ $env:SIMULATOR_SYNC_DATABASE="false"
 GET http://localhost:8081/api/simulator/status
 ```
 
-第一阶段建议保持 `SIMULATOR_SYNC_DATABASE=false`，只观察 TCP 消息。确认设备编号和连接器编号映射无误后，再设置为 `true`，平台才会把 `STATUS` 更新到现有 `connector` 表。数据库不会自动建表或改表。
+启用 `SIMULATOR_SYNC_DATABASE=true` 后，设备状态和实时电量会同步到现有 `connector` 与进行中订单。后端还会定时校准设备与订单状态，设备异常停止且仍有有效电量时会自动结算。数据库不会自动建表或改表。

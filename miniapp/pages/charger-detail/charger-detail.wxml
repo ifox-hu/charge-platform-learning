@@ -13,7 +13,7 @@
       <view wx:if="{{!simulatorDevices.length}}" class="simulator-empty">适配器未启用或暂无设备状态</view>
       <view wx:for="{{simulatorDevices}}" wx:key="deviceId" class="simulator-device-row">
         <view class="simulator-device-main"><view class="simulator-device-badge">ϟ</view><view><text class="simulator-device-name">{{item.deviceId}}</text><text class="simulator-device-status"><text class="simulator-dot {{item.connected ? 'online' : ''}}"></text>{{item.statusText}} · {{item.connectorRows.length}} 把枪</text></view></view>
-        <view class="simulator-connectors"><view wx:for="{{item.connectorRows}}" wx:key="connectorId" class="mini-connector {{item.status === 'CHARGING' ? 'charging' : item.status === 'IDLE' ? 'idle' : 'offline'}}"><text>枪{{item.connectorId}} {{item.statusText}}</text><text wx:if="{{item.status === 'CHARGING'}}">{{item.powerKw || 0}} kW · {{item.currentA || 0}} A · {{item.energyKwh || 0}} kWh</text><text wx:else>点击进入操作</text></view></view>
+        <view class="simulator-connectors"><view wx:for="{{item.connectorRows}}" wx:key="connectorId" class="mini-connector {{item.status === 'CHARGING' ? 'charging' : item.status === 'IDLE' ? 'idle' : 'offline'}}"><text>枪{{item.connectorId}} {{item.statusText}}</text><text wx:if="{{item.status === 'CHARGING'}}">{{item.powerKw || 0}} kW · {{item.currentA || 0}} A · {{item.energyKwh || 0}} kWh</text></view></view>
       </view>
     </view>
     <view class="price-card">
@@ -37,7 +37,8 @@
         <view class="package {{selectedPackage === 'KWH20' ? 'selected' : ''}}" data-package="KWH20" bindtap="choosePackage"><text class="package-name">按电量充</text><text class="package-desc">目标 20 kWh</text></view>
         <view class="package {{selectedPackage === 'FAST' ? 'selected' : ''}}" data-package="FAST" bindtap="choosePackage"><text class="package-name">快速补能</text><text class="package-desc">15 分钟体验充电</text></view>
       </view>
-      <input class="plate-input" value="{{plateNumber}}" placeholder="请输入车牌号" bindinput="onPlateInput" />
+        <view class="plate-fields"><view class="plate-picker" bindtap="openPlatePicker" data-type="region">{{plateRegion}}<text>⌄</text></view><view class="plate-picker" bindtap="openPlatePicker" data-type="letter">{{plateLetter}}<text>⌄</text></view><input class="plate-input" value="{{plateDigits}}" maxlength="6" type="number" placeholder="5或6位数字" bindinput="onPlateInput" /></view>
+      <view wx:if="{{platePickerOpen}}" class="plate-picker-backdrop" bindtap="closePlatePicker"><view class="plate-picker-panel" catchtap="closePlatePicker"><view class="plate-picker-head">{{platePickerOpen === 'region' ? '选择地区' : '选择字母'}}<text bindtap="closePlatePicker">×</text></view><view wx:if="{{platePickerOpen === 'region'}}" class="plate-option-grid regions"><view wx:for="{{regionOptions}}" wx:key="*this" class="plate-option {{plateRegion === item ? 'selected' : ''}}" data-value="{{item}}" bindtap="choosePlateRegion">{{item}}</view></view><view wx:else class="plate-option-grid"><view wx:for="{{letterOptions}}" wx:key="*this" class="plate-option {{plateLetter === item ? 'selected' : ''}}" data-value="{{item}}" bindtap="choosePlateLetter">{{item}}</view></view></view></view>
       <button class="primary start-button" loading="{{starting}}" bindtap="startCharging">开始充电</button>
     </view>
     <view wx:if="{{activeOrder}}" class="settle-panel">
@@ -45,8 +46,8 @@
       <view class="active-tag">正在充电 · {{activeOrder.orderNo}}</view>
       <view class="settle-row"><text>车牌号</text><text>{{activeOrder.plateNumber}}</text></view>
       <view class="settle-row"><text>开始时间</text><text>{{activeOrder.startTime}}</text></view>
-      <view class="muted settle-tip">测试模式下输入本次模拟电量即可结单，系统会自动计算电费和服务费。</view>
-      <input class="plate-input" type="digit" value="{{energyKwh}}" bindinput="onEnergyInput" />
+      <view wx:if="{{activeOrderLive}}" class="settle-row"><text>模拟桩实测</text><text>{{activeOrderLive.energyKwh || 0}} kWh · {{activeOrderLive.powerKw || 0}} kW</text></view>
+      <view class="muted settle-tip">结束后系统将读取对应模拟桩的实时电量，并自动计算电费和服务费。</view>
       <button class="primary start-button" loading="{{settling}}" bindtap="settleOrder">结束充电并结单</button>
     </view>
   </block>

@@ -7,6 +7,10 @@ import com.chargeplatform.station.service.StationService;
 import com.chargeplatform.common.dto.ApiResponse;
 import com.chargeplatform.common.dto.PageResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -20,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/stations")
@@ -34,7 +39,7 @@ public class StationController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<Station> create(@Valid @RequestBody CreateStationRequest request) {
-        return ApiResponse.created(stationService.create(request.getName(), request.getAddress(), request.getDescription()));
+        return ApiResponse.created(stationService.create(request.getName(), request.getAddress(), request.getDescription(), request.getLatitude(), request.getLongitude(), request.getCoordinateType()));
     }
 
     @GetMapping
@@ -54,7 +59,12 @@ public class StationController {
 
     @PutMapping("/{id}")
     public ApiResponse<Station> update(@PathVariable Long id, @Valid @RequestBody UpdateStationRequest request) {
-        return ApiResponse.success(stationService.update(id, request.name(), request.address(), request.description(), request.status()));
+        return ApiResponse.success(stationService.update(id, request.name(), request.address(), request.description(), request.status(), request.latitude(), request.longitude(), request.coordinateType()));
+    }
+
+    @PutMapping("/{id}/coordinates")
+    public ApiResponse<Station> updateCoordinates(@PathVariable Long id, @Valid @RequestBody CoordinateRequest request) {
+        return ApiResponse.success(stationService.updateCoordinates(id, request.latitude(), request.longitude(), request.coordinateType()));
     }
 
     @DeleteMapping("/{id}")
@@ -62,4 +72,9 @@ public class StationController {
         stationService.delete(id);
         return ApiResponse.message("充电站删除成功");
     }
+
+    public record CoordinateRequest(
+        @NotNull @DecimalMin("-90.0") @DecimalMax("90.0") BigDecimal latitude,
+        @NotNull @DecimalMin("-180.0") @DecimalMax("180.0") BigDecimal longitude,
+        @Size(max = 16) String coordinateType) { }
 }

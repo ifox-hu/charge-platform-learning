@@ -21,8 +21,6 @@ public class Charger {
     public Charger(Long stationId, String code, String name) {
         this.stationId = stationId; this.code = code; this.name = name; this.status = "ONLINE";
     }
-    public Charger(Long id, Long stationId, String code, String name) {
-        this.id = id; this.stationId = stationId; this.code = code; this.name = name; this.status = "ONLINE";
-    }
+    public void updateInfo(String code, String name, String status) { this.code = code; this.name = name; this.status = status; }
     public void updateStatus(String status) { this.status = status; }
 }

@@ -1,0 +1,134 @@
+services:
+  mysql:
+    image: mysql:8.0.30
+    restart: unless-stopped
+    init: true
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-charge_platform}
+      MYSQL_USER: ${MYSQL_USER:-charge}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - mysql-config:/etc/mysql
+      - ./docs/db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [charge-net]
+
+  redis:
+    image: redis:7.0.10
+    restart: unless-stopped
+    init: true
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [charge-net]
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    hostname: ${RABBITMQ_HOSTNAME:-rabbitmq}
+    restart: unless-stopped
+    init: true
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - rabbitmq-plugins:/plugins
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [charge-net]
+
+  simulator-001:
+    build: ./simulator
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-001 -Dsimulator.connectors=2 -Dsimulator.time-scale=${SIMULATOR_TIME_SCALE:-1}"
+    expose: ["9100"]
+    networks: [charge-net]
+
+  simulator-002:
+    build: ./simulator
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-002 -Dsimulator.connectors=2 -Dsimulator.time-scale=${SIMULATOR_TIME_SCALE:-1}"
+    expose: ["9100"]
+    networks: [charge-net]
+
+  simulator-003:
+    build: ./simulator
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-003 -Dsimulator.connectors=4 -Dsimulator.time-scale=${SIMULATOR_TIME_SCALE:-1}"
+    expose: ["9100"]
+    networks: [charge-net]
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    init: true
+    ports:
+      - "8081:8081"
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-charge_platform}
+      DB_USERNAME: ${MYSQL_USER:-charge}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      SIMULATOR_ENABLED: "true"
+      SIMULATOR_SYNC_DATABASE: "true"
+      SIMULATOR_DEVICES: "SIM-PILE-001@simulator-001:9100,SIM-PILE-002@simulator-002:9100,SIM-PILE-003@simulator-003:9100"
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health | grep -q 'UP'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [charge-net]
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    init: true
+    ports:
+      - "5173:80"
+    depends_on:
+      backend: { condition: service_healthy }
+    networks: [charge-net]
+
+volumes:
+  mysql-data:
+    name: ${MYSQL_DATA_VOLUME:-charge-platform_mysql-data}
+  mysql-config:
+    name: ${MYSQL_CONFIG_VOLUME:-charge-platform_mysql-config}
+  redis-data:
+    name: ${REDIS_DATA_VOLUME:-charge-platform_redis-data}
+  rabbitmq-data:
+    name: ${RABBITMQ_DATA_VOLUME:-charge-platform_rabbitmq-data}
+  rabbitmq-plugins:
+    name: ${RABBITMQ_PLUGINS_VOLUME:-charge-platform_rabbitmq-plugins}
+
+networks:
+  charge-net:

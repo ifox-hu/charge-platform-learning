@@ -2,9 +2,11 @@ const { request } = require('../../utils/request')
 
 Page({
   data: {
+    regionOptions: ['京','津','沪','渝','冀','豫','云','辽','黑','湘','皖','鲁','新','苏','浙','赣','鄂','桂','甘','晋','蒙','陕','吉','闽','贵','粤','青','藏','川','宁','琼','港','澳','台'],
+    letterOptions: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
     charger: null, connectors: [], prices: [], simulatorDevices: [], loading: true, error: '', selectedConnector: null,
-    selectedPackage: 'FULL', plateNumber: '测试车A001', starting: false,
-    activeOrder: null, settling: false, energyKwh: '1.000'
+    selectedPackage: 'FULL', plateRegion: '京', plateLetter: 'A', plateDigits: '', platePickerOpen: '', starting: false,
+    activeOrder: null, activeOrderLive: null, settling: false
   },
   onLoad(options) {
     this.stationId = options.stationId
@@ -25,6 +27,7 @@ Page({
       this.simulatorTimer = null
     }
   },
+  onUnload() { this.onHide() },
   goBack() {
     const pages = getCurrentPages()
     if (pages.length > 1) wx.navigateBack()
@@ -38,9 +41,9 @@ Page({
       request({ url: `/price-periods?stationId=${this.stationId}` }),
       request({ url: '/simulator/status' })
     ]).then(([chargers, connectors, prices, simulator]) => {
-      const charger = (chargers || []).find(item => item.id === Number(this.chargerId)) || (this.simulatorOnly ? { code: this.simulatorDeviceId.replace('SIM-', 'PILE-'), name: '模拟充电桩', status: 'ONLINE' } : null)
+      const charger = (chargers || []).find(item => item.id === Number(this.chargerId)) || (this.simulatorOnly ? { code: this.simulatorDeviceId.replace(/^SIM-/, ''), name: '模拟充电桩', status: 'ONLINE' } : null)
       const statusText = { IDLE: '空闲', CHARGING: '充电中', FAULT: '故障', OFFLINE: '离线' }
-      const simulatorDevices = this.formatSimulatorDevices(simulator, statusText)
+      const simulatorDevices = this.formatSimulatorDevices(simulator, statusText, this.simulatorOnly ? null : (connectors || []))
       this.setData({ charger, prices: prices || [], simulatorDevices, connectors: (connectors || []).map(item => ({ ...item, statusText: statusText[item.status] || item.status || '未知' })) })
     }).catch(error => {
       if (error.message !== 'UNAUTHORIZED') this.setData({ error: '充电桩详情加载失败，请稍后重试' })
@@ -48,19 +51,43 @@ Page({
   },
   loadSimulatorStatus() {
     const statusText = { IDLE: '空闲', CHARGING: '充电中', FAULT: '故障', OFFLINE: '离线' }
-    return request({ url: '/simulator/status' }).then(simulator => {
-      const simulatorDevices = this.formatSimulatorDevices(simulator, statusText)
-      this.setData({ simulatorDevices })
+    const connectorRequest = this.simulatorOnly ? Promise.resolve(this.data.connectors) : request({ url: `/connectors?chargerId=${this.chargerId}` })
+    return Promise.all([request({ url: '/simulator/status' }), connectorRequest]).then(([simulator, connectors]) => {
+      const normalizedConnectors = (connectors || []).map(item => ({ ...item, statusText: statusText[item.status] || item.status || '未知' }))
+      const simulatorDevices = this.formatSimulatorDevices(simulator, statusText, this.simulatorOnly ? null : normalizedConnectors)
+      this.setData({ simulatorDevices, ...(this.simulatorOnly ? {} : { connectors: normalizedConnectors }) })
     }).catch(() => {})
   },
-  formatSimulatorDevices(simulator, statusText) {
+  formatSimulatorDevices(simulator, statusText, databaseConnectors) {
     const devices = Array.isArray(simulator?.devices) ? simulator.devices : simulator?.deviceId ? [simulator] : []
     const filtered = this.simulatorDeviceId ? devices.filter(device => device.deviceId === this.simulatorDeviceId) : devices
-    return filtered.sort((left, right) => left.deviceId.localeCompare(right.deviceId)).map(device => ({
-      ...device,
-      statusText: device.connected ? '在线' : '离线',
-      connectorRows: Object.values(device.connectors || {}).map(item => ({ ...item, statusText: statusText[item.status] || item.status || '未知' }))
-    }))
+    return filtered.sort((left, right) => left.deviceId.localeCompare(right.deviceId)).map(device => {
+      const rows = Object.values(device.connectors || {})
+      let visibleRows = rows
+      if (Array.isArray(databaseConnectors)) {
+        const liveById = new Map(rows.map(item => [Number(item.connectorId), item]))
+        visibleRows = databaseConnectors.map((connector, index) => {
+          const match = String(connector.code || '').trim().match(/(?:-|_)([A-Z]|\d+)$/i)
+          const suffix = match ? match[1].toUpperCase() : ''
+          const localId = suffix
+            ? (/^[A-Z]$/.test(suffix) ? suffix.charCodeAt(0) - 64 : Number(suffix))
+            : index + 1
+          // Use live TCP data when available; otherwise keep the database status visible.
+          return liveById.get(localId) || {
+            connectorId: localId,
+            status: connector.status || 'OFFLINE',
+            energyKwh: 0,
+            powerKw: 0,
+            currentA: 0
+          }
+        })
+      }
+      return {
+        ...device,
+        statusText: device.connected ? '在线' : '离线',
+        connectorRows: visibleRows.map(item => ({ ...item, statusText: statusText[item.status] || item.status || '未知' }))
+      }
+    })
   },
   selectConnector(event) {
     const connector = this.data.connectors.find(item => item.id === event.currentTarget.dataset.id)
@@ -76,30 +103,33 @@ Page({
         wx.showToast({ title: '订单状态正在同步，请刷新重试', icon: 'none' })
         return this.loadData()
       }
-      this.setData({ activeOrder: order, energyKwh: '1.000' })
+      request({ url: `/orders/${order.id}/live` })
+        .then(live => this.setData({ activeOrder: order, activeOrderLive: live }))
+        .catch(() => this.setData({ activeOrder: order, activeOrderLive: null }))
     })
   },
   closeStartPanel() { this.setData({ selectedConnector: null }) },
-  closeSettlePanel() { this.setData({ activeOrder: null }) },
+  closeSettlePanel() { this.setData({ activeOrder: null, activeOrderLive: null }) },
   choosePackage(event) { this.setData({ selectedPackage: event.currentTarget.dataset.package }) },
-  onPlateInput(event) { this.setData({ plateNumber: event.detail.value }) },
-  onEnergyInput(event) { this.setData({ energyKwh: event.detail.value }) },
+  openPlatePicker(event) { this.setData({ platePickerOpen: event.currentTarget.dataset.type }) },
+  closePlatePicker() { this.setData({ platePickerOpen: '' }) },
+  choosePlateRegion(event) { this.setData({ plateRegion: event.currentTarget.dataset.value, platePickerOpen: '' }) },
+  choosePlateLetter(event) { this.setData({ plateLetter: event.currentTarget.dataset.value, platePickerOpen: '' }) },
+  onPlateInput(event) { this.setData({ plateDigits: event.detail.value.replace(/[^0-9]/g, '').slice(0, 6) }) },
   startCharging() {
-    const plateNumber = (this.data.plateNumber || '').trim()
-    if (!plateNumber) return wx.showToast({ title: '请输入车牌号', icon: 'none' })
+    const plateNumber = `${this.data.plateRegion}${this.data.plateLetter}${this.data.plateDigits || ''}`
+    if (!/^[\u4e00-\u9fa5][A-Z][0-9]{5,6}$/.test(plateNumber)) return wx.showToast({ title: '请选择地区、字母并输入5或6位数字', icon: 'none' })
     this.setData({ starting: true })
-    request({ url: '/orders/start', method: 'POST', data: { stationId: Number(this.stationId), connectorId: this.data.selectedConnector.id, plateNumber } })
+    request({ url: '/orders/start', method: 'POST', data: { stationId: Number(this.stationId), connectorId: this.data.selectedConnector.id, plateNumber, testOrder: true } })
       .then(order => wx.redirectTo({ url: `/pages/current-order/current-order?id=${order.id}&package=${this.data.selectedPackage}&power=${this.data.selectedConnector.ratedPower || 7.2}` }))
       .finally(() => this.setData({ starting: false }))
   },
   settleOrder() {
-    const energyKwh = Number(this.data.energyKwh)
-    if (!energyKwh || energyKwh <= 0) return wx.showToast({ title: '请输入大于 0 的电量', icon: 'none' })
     this.setData({ settling: true })
-    request({ url: `/orders/${this.data.activeOrder.id}/stop`, method: 'POST', data: { energyKwh } })
+    request({ url: `/orders/${this.data.activeOrder.id}/stop`, method: 'POST', data: {} })
       .then(() => {
         wx.showToast({ title: '订单已结单' })
-        this.setData({ activeOrder: null })
+        this.setData({ activeOrder: null, activeOrderLive: null })
         this.loadData()
       })
       .finally(() => this.setData({ settling: false }))

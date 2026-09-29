@@ -28,6 +28,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth->auth
                 .requestMatchers("/api/health/**","/api/auth/login","/api/hello/**","/actuator/health","/actuator/info","/h2-console/**","/v3/api-docs/**","/swagger-ui/**","/swagger-ui.html").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS,"/**").permitAll()
+                .requestMatchers("/api/audit-logs/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET,"/api/**").hasAnyRole("ADMIN","OPERATOR")
                 .requestMatchers(HttpMethod.POST,"/api/orders/**").hasAnyRole("ADMIN","OPERATOR")
                 .requestMatchers("/actuator/**").hasRole("ADMIN")

@@ -5,7 +5,7 @@ services:
     container_name: charge-simulator-001
     restart: unless-stopped
     environment:
-      JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-001 -Dsimulator.connectors=2"
+      JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-001 -Dsimulator.connectors=2 -Dsimulator.time-scale=${SIMULATOR_TIME_SCALE:-1}"
     volumes:
       - ./target/charge-platform-simulator-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
     command: ["java", "-jar", "/app/app.jar"]
@@ -18,7 +18,7 @@ services:
     container_name: charge-simulator-002
     restart: unless-stopped
     environment:
-      JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-002 -Dsimulator.connectors=2"
+      JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-002 -Dsimulator.connectors=2 -Dsimulator.time-scale=${SIMULATOR_TIME_SCALE:-1}"
     volumes:
       - ./target/charge-platform-simulator-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
     command: ["java", "-jar", "/app/app.jar"]
@@ -31,7 +31,7 @@ services:
     container_name: charge-simulator-003
     restart: unless-stopped
     environment:
-      JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-003 -Dsimulator.connectors=4"
+      JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-003 -Dsimulator.connectors=4 -Dsimulator.time-scale=${SIMULATOR_TIME_SCALE:-1}"
     volumes:
       - ./target/charge-platform-simulator-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
     command: ["java", "-jar", "/app/app.jar"]

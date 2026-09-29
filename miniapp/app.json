@@ -17,6 +17,9 @@
       "desc": "用于显示附近充电站"
     }
   },
+  "requiredPrivateInfos": [
+    "getLocation"
+  ],
   "style": "v2",
   "sitemapLocation": "sitemap.json"
 }

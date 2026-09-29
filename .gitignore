@@ -11,6 +11,13 @@ frontend/dist/
 frontend/.env.local
 miniapp/project.private.config.json
 
+# Local deployment secrets and certificates
+.env
+certs/
+*.key
+*.pem
+*.crt
+
 # IDE and operating system
 .idea/
 *.iml

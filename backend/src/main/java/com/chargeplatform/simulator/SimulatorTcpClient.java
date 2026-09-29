@@ -1,13 +1,18 @@
 package com.chargeplatform.simulator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.chargeplatform.common.exception.BusinessException;
 import com.chargeplatform.device.domain.Connector;
 import com.chargeplatform.device.mapper.ConnectorMapper;
 import com.chargeplatform.order.mapper.ChargeOrderMapper;
+import com.chargeplatform.realtime.RealtimeStatusWebSocketHandler;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.math.BigDecimal;
@@ -18,6 +23,7 @@ import java.util.concurrent.*;
 
 @Component
 public class SimulatorTcpClient {
+    private static final Logger log = LoggerFactory.getLogger(SimulatorTcpClient.class);
     private final ObjectMapper mapper;
     private final boolean enabled;
     private final String legacyHost;
@@ -29,10 +35,13 @@ public class SimulatorTcpClient {
     private final long offlineTimeoutMs;
     private final ConnectorMapper connectorMapper;
     private final ChargeOrderMapper chargeOrderMapper;
+    private final SimulatorBindingResolver bindings;
+    private final RealtimeStatusWebSocketHandler realtime;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(6);
     private final Map<String, DeviceConnection> devices = new ConcurrentHashMap<>();
     private volatile String defaultDeviceId;
 
+    @Autowired
     public SimulatorTcpClient(ObjectMapper mapper,
                               @Value("${app.simulator.enabled:false}") boolean enabled,
                               @Value("${app.simulator.host:127.0.0.1}") String host,
@@ -43,11 +52,21 @@ public class SimulatorTcpClient {
                               @Value("${app.simulator.sync-database:false}") boolean syncDatabase,
                               @Value("${app.simulator.offline-timeout-ms:30000}") long offlineTimeoutMs,
                               ConnectorMapper connectorMapper,
-                              ChargeOrderMapper chargeOrderMapper) {
+                              ChargeOrderMapper chargeOrderMapper,
+                              SimulatorBindingResolver bindings,
+                              RealtimeStatusWebSocketHandler realtime) {
         this.mapper = mapper; this.enabled = enabled; this.legacyHost = host; this.legacyPort = port;
         this.legacyDeviceId = deviceId; this.devicesConfig = devicesConfig; this.reconnectDelayMs = reconnectDelayMs;
         this.syncDatabase = syncDatabase; this.offlineTimeoutMs = offlineTimeoutMs;
-        this.connectorMapper = connectorMapper; this.chargeOrderMapper = chargeOrderMapper;
+        this.connectorMapper = connectorMapper; this.chargeOrderMapper = chargeOrderMapper; this.bindings = bindings; this.realtime = realtime;
+    }
+
+    public SimulatorTcpClient(ObjectMapper mapper, boolean enabled, String host, int port, String deviceId,
+                              String devicesConfig, long reconnectDelayMs, boolean syncDatabase, long offlineTimeoutMs,
+                              ConnectorMapper connectorMapper, ChargeOrderMapper chargeOrderMapper,
+                              SimulatorBindingResolver bindings) {
+        this(mapper, enabled, host, port, deviceId, devicesConfig, reconnectDelayMs, syncDatabase, offlineTimeoutMs,
+                connectorMapper, chargeOrderMapper, bindings, null);
     }
 
     @PostConstruct
@@ -59,7 +78,12 @@ public class SimulatorTcpClient {
         if (!enabled) return;
         devices.values().forEach(device -> {
             scheduler.execute(device::connectLoop);
-            scheduler.scheduleAtFixedRate(() -> sendTo(device.config.deviceId(), new Command("PING", null)), 10, 10, TimeUnit.SECONDS);
+            scheduler.scheduleAtFixedRate(() -> {
+                if (device.connected) {
+                    try { sendTo(device.config.deviceId(), new Command("PING", null)); }
+                    catch (RuntimeException error) { log.debug("模拟桩心跳发送失败: {}", device.config.deviceId(), error); }
+                }
+            }, 10, 10, TimeUnit.SECONDS);
             scheduler.scheduleAtFixedRate(device::markOfflineIfStale, 10, 10, TimeUnit.SECONDS);
         });
     }
@@ -87,6 +111,22 @@ public class SimulatorTcpClient {
 
     public void sendToDevice(String deviceId, Command command) { sendTo(deviceId, command); }
 
+    public ConnectorSnapshot sendAndConfirm(String deviceId, Command command, String expectedStatus) {
+        DeviceConnection device = devices.get(deviceId);
+        if (device == null) throw new BusinessException(409, "未配置对应的模拟充电桩: " + deviceId);
+        return device.sendAndConfirm(command, expectedStatus);
+    }
+
+    public LiveConnector liveConnector(String deviceId, int connectorId) {
+        DeviceConnection device = devices.get(deviceId);
+        if (device == null) throw new BusinessException(409, "未配置对应的模拟充电桩: " + deviceId);
+        SimulatorStatus status = device.status();
+        if (!status.connected()) throw new BusinessException(409, "模拟充电桩当前离线: " + deviceId);
+        ConnectorSnapshot connector = status.connectors().get(connectorId);
+        if (connector == null) throw new BusinessException(409, "模拟充电桩未上报对应充电枪状态");
+        return new LiveConnector(deviceId, connector);
+    }
+
     private void sendTo(String deviceId, Command command) {
         DeviceConnection device = devices.get(deviceId);
         if (device == null) throw new IllegalStateException("unknown simulator device: " + deviceId);
@@ -100,12 +140,16 @@ public class SimulatorTcpClient {
         return new FleetStatus(enabled, statuses);
     }
 
-    private void syncConnector(Message message) {
+    private void publishStatus() { if (realtime != null) realtime.publish(status()); }
+
+    private void syncConnector(String deviceId, Message message) {
         if (!Set.of("IDLE", "CHARGING", "FAULT", "OFFLINE").contains(message.status())) return;
-        Connector connector = connectorMapper.selectById(message.connectorId().longValue());
+        Connector connector = bindings.resolveDatabaseConnector(deviceId, message.connectorId());
         if (connector == null) return;
         if (!connector.getStatus().equals(message.status())) { connector.changeStatus(message.status()); connectorMapper.updateById(connector); }
-        if ("CHARGING".equals(message.status()) && message.energyKwh() != null) chargeOrderMapper.updateChargingEnergy(message.connectorId().longValue(), message.energyKwh());
+        if ("CHARGING".equals(message.status()) && message.energyKwh() != null) {
+            chargeOrderMapper.updateChargingEnergy(connector.getId(), message.energyKwh());
+        }
     }
 
     @PreDestroy
@@ -113,6 +157,7 @@ public class SimulatorTcpClient {
 
     public record Command(String command, Integer connectorId) { }
     public record ConnectorSnapshot(Integer connectorId, String status, BigDecimal energyKwh, BigDecimal powerKw, BigDecimal voltageV, BigDecimal currentA, Instant lastMessageAt) { }
+    public record LiveConnector(String deviceId, ConnectorSnapshot connector) { }
     public record SimulatorStatus(boolean enabled, boolean connected, String deviceId, Instant lastMessageAt, Map<Integer, ConnectorSnapshot> connectors) { }
     public record FleetStatus(boolean enabled, List<SimulatorStatus> devices) { }
     private record DeviceConfig(String deviceId, String host, int port) { }
@@ -121,6 +166,7 @@ public class SimulatorTcpClient {
     private final class DeviceConnection {
         private final DeviceConfig config;
         private final Map<Integer, ConnectorSnapshot> connectors = new ConcurrentHashMap<>();
+        private final Map<Integer, PendingCommand> pendingCommands = new ConcurrentHashMap<>();
         private volatile Socket socket;
         private volatile BufferedWriter writer;
         private volatile boolean connected;
@@ -133,25 +179,72 @@ public class SimulatorTcpClient {
             while (!scheduler.isShutdown()) {
                 try (Socket current = new Socket(config.host(), config.port()); BufferedReader reader = new BufferedReader(new InputStreamReader(current.getInputStream())); BufferedWriter output = new BufferedWriter(new OutputStreamWriter(current.getOutputStream()))) {
                     socket = current; writer = output; connected = true;
+                    publishStatus();
                     String line; while ((line = reader.readLine()) != null) handle(line);
                 } catch (IOException ignored) { connected = false; }
-                finally { connected = false; socket = null; writer = null; }
+                finally {
+                    connected = false; socket = null; writer = null;
+                    pendingCommands.values().forEach(pending -> pending.response().completeExceptionally(new IOException("模拟桩连接已断开")));
+                    pendingCommands.clear();
+                    connectors.clear();
+                    lastMessageAt = null;
+                    publishStatus();
+                }
                 try { Thread.sleep(reconnectDelayMs); } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); return; }
             }
         }
 
         private void handle(String line) throws IOException {
             Message message = mapper.readValue(line, Message.class); lastMessageAt = Instant.now();
+            if (message.deviceId() != null && !config.deviceId().equals(message.deviceId())) {
+                throw new IOException("模拟桩设备编号不匹配: " + message.deviceId());
+            }
             if (message.deviceId() != null) actualDeviceId = message.deviceId();
             if ("STATUS".equals(message.type()) && message.connectorId() != null) {
                 BigDecimal voltage = message.voltageV() == null ? BigDecimal.valueOf(220) : message.voltageV();
                 BigDecimal current = message.currentA() == null && message.powerKw() != null
                         ? message.powerKw().multiply(BigDecimal.valueOf(1000)).divide(voltage, 2, java.math.RoundingMode.HALF_UP)
                         : message.currentA();
-                connectors.put(message.connectorId(), new ConnectorSnapshot(message.connectorId(), message.status(), message.energyKwh(), message.powerKw(), voltage, current, lastMessageAt));
-                if (syncDatabase) syncConnector(message);
+                ConnectorSnapshot snapshot = new ConnectorSnapshot(message.connectorId(), message.status(), message.energyKwh(), message.powerKw(), voltage, current, lastMessageAt);
+                connectors.put(message.connectorId(), snapshot);
+                publishStatus();
+                PendingCommand pending = pendingCommands.get(message.connectorId());
+                if (pending != null && pending.expectedStatus().equals(snapshot.status())) pending.response().complete(snapshot);
+                if (syncDatabase) {
+                    try { syncConnector(config.deviceId(), message); }
+                    catch (RuntimeException error) { log.warn("模拟桩状态写入数据库失败: deviceId={}, connectorId={}", config.deviceId(), message.connectorId(), error); }
+                }
             }
         }
+
+        private synchronized ConnectorSnapshot sendAndConfirm(Command command, String expectedStatus) {
+            if (command.connectorId() == null) throw new IllegalArgumentException("connectorId is required");
+            SimulatorStatus current = status();
+            if (!current.connected()) throw new BusinessException(409, "模拟充电桩当前离线: " + config.deviceId());
+            ConnectorSnapshot before = current.connectors().get(command.connectorId());
+            if (before == null) throw new BusinessException(409, "模拟充电桩未上报对应充电枪状态");
+            String requiredStatus = "START".equals(command.command()) ? "IDLE" : "CHARGING";
+            if (!requiredStatus.equals(before.status())) {
+                throw new BusinessException(409, "模拟充电枪当前状态为 " + before.status() + "，无法执行 " + command.command());
+            }
+            CompletableFuture<ConnectorSnapshot> response = new CompletableFuture<>();
+            PendingCommand pending = new PendingCommand(expectedStatus, response);
+            pendingCommands.put(command.connectorId(), pending);
+            try {
+                send(command);
+                ConnectorSnapshot confirmed = response.get(3, TimeUnit.SECONDS);
+                return confirmed;
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                throw new BusinessException(409, "等待模拟充电桩响应被中断");
+            } catch (ExecutionException | TimeoutException error) {
+                throw new BusinessException(409, "模拟充电桩未确认命令，请检查设备状态后重试");
+            } finally {
+                pendingCommands.remove(command.connectorId(), pending);
+            }
+        }
+
+        private record PendingCommand(String expectedStatus, CompletableFuture<ConnectorSnapshot> response) { }
 
         private synchronized void send(Command command) {
             if (!connected || writer == null) throw new IllegalStateException("simulator is not connected: " + config.deviceId());
@@ -163,6 +256,7 @@ public class SimulatorTcpClient {
             Instant last = lastMessageAt;
             if (last == null || Instant.now().minusMillis(offlineTimeoutMs).isBefore(last)) return;
             connectors.replaceAll((id, snapshot) -> new ConnectorSnapshot(id, "OFFLINE", snapshot.energyKwh(), snapshot.powerKw(), snapshot.voltageV(), snapshot.currentA(), snapshot.lastMessageAt()));
+            publishStatus();
         }
 
         private SimulatorStatus status() {

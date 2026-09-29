@@ -16,13 +16,13 @@
       <view><text class="stat-value accent">{{operatingCount}}</text><text class="stat-label">运营中</text></view>
     </view>
   </view>
-  <view class="map-card"><view class="map-card-head"><view><text class="section-kicker">LIVE LOCATION</text><text class="section-title">附近充电站</text></view><view class="map-location-actions"><text class="map-location-label">{{locationLabel}}</text><text class="locate-button" bindtap="requestLocationPermission">重新定位</text></view></view><map class="station-map" longitude="{{longitude}}" latitude="{{latitude}}" scale="12" markers="{{markers}}" bindmarkertap="onMarkerTap"></map></view>
+  <view class="map-card"><view class="map-card-head"><view><text class="section-kicker">LIVE LOCATION</text><text class="section-title">附近充电站</text></view><view class="map-location-actions"><text class="map-location-label">{{locationLabel}}</text><text class="locate-button" bindtap="requestLocationPermission">重新定位</text></view></view><map class="station-map" longitude="{{longitude}}" latitude="{{latitude}}" scale="{{mapScale}}" markers="{{markers}}" show-location="true" enable-rotate="false" enable-overlooking="false" bindmarkertap="onMarkerTap"></map><text wx:if="{{mapNotice}}" class="map-notice">{{mapNotice}}，请先在 Web 地图中完成解析。</text></view>
   <view class="section-head">
     <view><text class="section-kicker">STATIONS</text><text class="section-title">充电站列表</text></view>
     <text class="section-count">{{stationCount}} 个站点</text>
   </view>
   <view wx:if="{{loading}}" class="empty">正在加载充电站...</view>
-  <view wx:elif="{{error}}" class="error">{{error}}</view>
+  <view wx:elif="{{error}}" class="error">{{error}}<button wx:if="{{loginRequired}}" class="primary" bindtap="openLogin">去登录</button><button wx:else class="primary" bindtap="retryStations">重新加载</button></view>
   <view wx:elif="{{!stations.length}}" class="empty">暂无充电站</view>
   <view wx:else>
     <view wx:for="{{stations}}" wx:key="id" class="card station" data-id="{{item.id}}" bindtap="openStation">

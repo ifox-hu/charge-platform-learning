@@ -36,6 +36,11 @@ public class DeviceController {
         return ApiResponse.success(service.changeStatus(id, request.status()));
     }
 
+    @PutMapping("/chargers/{id}")
+    public ApiResponse<Charger> updateCharger(@PathVariable Long id, @Valid @RequestBody DeviceRequests.UpdateCharger request) {
+        return ApiResponse.success(service.updateCharger(id, request));
+    }
+
     @PostMapping("/connectors")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<Connector> createConnector(@Valid @RequestBody DeviceRequests.CreateConnector request) {
@@ -45,6 +50,11 @@ public class DeviceController {
     @GetMapping("/connectors")
     public ApiResponse<List<Connector>> connectors(@RequestParam(required = false) Long chargerId) {
         return ApiResponse.success(service.connectors(chargerId));
+    }
+
+    @PutMapping("/connectors/{id}")
+    public ApiResponse<Connector> updateConnector(@PathVariable Long id, @Valid @RequestBody DeviceRequests.UpdateConnector request) {
+        return ApiResponse.success(service.updateConnector(id, request));
     }
 
     @DeleteMapping("/chargers/{id}")

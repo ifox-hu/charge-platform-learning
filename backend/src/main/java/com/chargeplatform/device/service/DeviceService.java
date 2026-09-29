@@ -32,7 +32,7 @@ public class DeviceService {
     @CacheEvict(cacheNames = "dashboard", key = "'summary'")
     public Charger createCharger(DeviceRequests.CreateCharger request) {
         if (stations.selectById(request.stationId()) == null) throw new BusinessException(404, "所属充电站不存在");
-        Charger charger = new Charger(chargers.nextId(), request.stationId(), request.code().trim(), request.name().trim());
+        Charger charger = new Charger(request.stationId(), request.code().trim(), request.name().trim());
         chargers.insert(charger);
         return charger;
     }
@@ -57,9 +57,21 @@ public class DeviceService {
     }
 
     @CacheEvict(cacheNames = "dashboard", key = "'summary'")
+    public Charger updateCharger(Long id, DeviceRequests.UpdateCharger request) {
+        Charger charger = chargers.selectById(id);
+        if (charger == null) throw new BusinessException(404, "充电桩不存在");
+        if (!"ONLINE".equals(request.status()) && connectors.existsByChargerIdAndStatus(id, "CHARGING")) {
+            throw new BusinessException(409, "存在正在充电的充电枪，不能将充电桩设为离线或故障");
+        }
+        charger.updateInfo(request.code().trim(), request.name().trim(), request.status());
+        chargers.updateById(charger);
+        return charger;
+    }
+
+    @CacheEvict(cacheNames = "dashboard", key = "'summary'")
     public Connector createConnector(DeviceRequests.CreateConnector request) {
         if (chargers.selectById(request.chargerId()) == null) throw new BusinessException(404, "所属充电桩不存在");
-        Connector connector = new Connector(connectors.nextId(), request.chargerId(), request.code().trim(), request.name().trim(), request.ratedPower());
+        Connector connector = new Connector(request.chargerId(), request.code().trim(), request.name().trim(), request.ratedPower());
         connectors.insert(connector);
         return connector;
     }
@@ -68,6 +80,16 @@ public class DeviceService {
         return connectors.selectList(new LambdaQueryWrapper<Connector>()
             .eq(chargerId != null, Connector::getChargerId, chargerId)
             .orderByAsc(Connector::getId));
+    }
+
+    @CacheEvict(cacheNames = "dashboard", key = "'summary'")
+    public Connector updateConnector(Long id, DeviceRequests.UpdateConnector request) {
+        Connector connector = connectors.selectById(id);
+        if (connector == null) throw new BusinessException(404, "充电枪不存在");
+        if (!"IDLE".equals(connector.getStatus())) throw new BusinessException(409, "充电中的充电枪不能编辑");
+        connector.updateInfo(request.code().trim(), request.name().trim(), request.ratedPower());
+        connectors.updateById(connector);
+        return connector;
     }
 
     @CacheEvict(cacheNames = "dashboard", key = "'summary'")

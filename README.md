@@ -2,6 +2,19 @@
 
 一个面向 Java 基础巩固的轻量充电桩运营管理项目。每个阶段只完成一条小业务链路，并保留运行与练习空间。
 
+## 开发文档
+
+完整的类似产品开发手册请从 [`docs/README.md`](docs/README.md) 开始：
+
+- [快速开始](docs/getting-started.md)
+- [项目结构](docs/project-structure.md)
+- [本地开发](docs/local-development.md)
+- [模拟充电桩联调](docs/simulator.md)
+- [Docker 部署](docs/deployment.md)
+- [接口与实时通信](docs/api-and-realtime.md)
+- [数据库迁移](docs/database.md)
+- [故障排查](docs/troubleshooting.md)
+
 ## 当前阶段
 
 - 后端：Java 17、Spring Boot 3.5.10，端口 `8081`
@@ -51,7 +64,7 @@ Backend Local
 
 ```text
 SIMULATOR_ENABLED=true
-SIMULATOR_SYNC_DATABASE=false
+SIMULATOR_SYNC_DATABASE=true
 SIMULATOR_HOST=127.0.0.1
 SIMULATOR_DEVICES=SIM-PILE-001@127.0.0.1:9100,SIM-PILE-002@127.0.0.1:9101,SIM-PILE-003@127.0.0.1:9102
 ```
@@ -107,3 +120,37 @@ Redis 看板缓存默认开启，默认连接本机 `6379`；看板统计会缓�
 当前阶段先验证设备协议和状态机；下一阶段再在 Spring Boot 中增加 TCP Adapter，把设备 `STATUS` 转换为订单/连接器业务事件。等 Adapter 稳定后，再考虑 Smart-Socket、国标协议字段和 Docker 批量编排。
 
 更多请求链路、部署参数和简历表述见 `docs/`。
+
+## Docker Compose
+
+根目录提供 `docker-compose.yml`，可统一启动 MySQL、Redis、RabbitMQ、后端、前端和三台模拟桩：
+
+```bash
+cp .env.example .env
+# 编辑 .env，至少设置 JWT_SECRET 和数据库密码
+docker compose build
+docker compose up -d
+```
+
+Compose 会等待 MySQL、Redis、RabbitMQ 和后端健康后再启动前端；所有服务使用 `restart: unless-stopped`，服务器重启后会自动恢复。Web 端模拟桩状态通过 `/ws/status` 推送，连接暂时不可用时前端保留轮询兜底。首次构建需要联网下载 Maven、Node 和 Docker 基础镜像。
+
+从已有服务器切换时，先查出旧容器使用的数据卷：
+
+```bash
+docker inspect mysql --format '{{range .Mounts}}{{println .Name}}{{end}}'
+docker inspect redis --format '{{range .Mounts}}{{println .Name}}{{end}}'
+docker inspect rabbitmq --format '{{range .Mounts}}{{println .Name}}{{end}}'
+```
+
+把查到的卷名分别写入 `.env` 的 `MYSQL_DATA_VOLUME`、`REDIS_DATA_VOLUME`、`RABBITMQ_DATA_VOLUME`。停止旧容器后再执行 `docker compose up -d --build`，Compose 会复用原数据，不会创建空数据库。
+
+常用运维命令：
+
+```bash
+docker compose ps
+docker compose logs -f backend
+docker compose restart backend frontend
+docker compose down
+```
+
+前端访问 `http://localhost:5173`，RabbitMQ 管理台访问 `http://localhost:15672`。MySQL 的 V2/V3 迁移脚本会在新数据卷首次初始化时自动执行；项目当前没有完整的基础表建表脚本，已有数据库需要先导入基础表结构，再执行迁移。审计日志需要同时执行 `docs/db/V4__audit_log.sql`；它记录已登录账号对业务接口的写操作，日志写入失败不会阻断业务请求。

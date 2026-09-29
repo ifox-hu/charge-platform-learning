@@ -12,6 +12,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 
 import java.util.List;
+import java.math.BigDecimal;
 
 @Service
 public class StationServiceImpl implements StationService {
@@ -31,7 +32,12 @@ public class StationServiceImpl implements StationService {
     @Override
     @CacheEvict(cacheNames = "dashboard", key = "'summary'")
     public Station create(String name, String address, String description) {
-        Station station = new Station(stations.nextId(), name.trim(), address.trim(), description);
+        return create(name, address, description, null, null, null);
+    }
+
+    @Override
+    public Station create(String name, String address, String description, BigDecimal latitude, BigDecimal longitude, String coordinateType) {
+        Station station = new Station(name.trim(), address.trim(), description, latitude, longitude, coordinateType);
         stations.insert(station);
         return station;
     }
@@ -61,8 +67,27 @@ public class StationServiceImpl implements StationService {
     @Override
     @CacheEvict(cacheNames = "dashboard", key = "'summary'")
     public Station update(Long id, String name, String address, String description, String status) {
+        Station current = findById(id);
+        return update(id, name, address, description, status, current.getLatitude(), current.getLongitude(), current.getCoordinateType());
+    }
+
+    @Override
+    public Station update(Long id, String name, String address, String description, String status, BigDecimal latitude, BigDecimal longitude, String coordinateType) {
         Station station = findById(id);
-        station.update(name.trim(), address.trim(), description, status);
+        station.update(name.trim(), address.trim(), description, status,
+            latitude == null ? station.getLatitude() : latitude,
+            longitude == null ? station.getLongitude() : longitude,
+            coordinateType == null || coordinateType.isBlank() ? station.getCoordinateType() : coordinateType.trim());
+        stations.updateById(station);
+        return station;
+    }
+
+    @Override
+    @CacheEvict(cacheNames = "dashboard", key = "'summary'")
+    public Station updateCoordinates(Long id, BigDecimal latitude, BigDecimal longitude, String coordinateType) {
+        if (latitude == null || longitude == null) throw new BusinessException(400, "经纬度不能为空");
+        Station station = findById(id);
+        station.updateCoordinates(latitude, longitude, coordinateType == null || coordinateType.isBlank() ? "GCJ02" : coordinateType.trim());
         stations.updateById(station);
         return station;
     }

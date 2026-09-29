@@ -23,4 +23,7 @@ public class PricePeriod {
     public PricePeriod(Long stationId, LocalTime startTime, LocalTime endTime, BigDecimal electricityPrice, BigDecimal servicePrice) {
         this.stationId=stationId; this.startTime=startTime; this.endTime=endTime; this.electricityPrice=electricityPrice; this.servicePrice=servicePrice;
     }
+    public void update(LocalTime startTime, LocalTime endTime, BigDecimal electricityPrice, BigDecimal servicePrice) {
+        this.startTime = startTime; this.endTime = endTime; this.electricityPrice = electricityPrice; this.servicePrice = servicePrice;
+    }
 }

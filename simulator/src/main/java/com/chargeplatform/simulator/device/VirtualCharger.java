@@ -10,10 +10,14 @@ public final class VirtualCharger {
     private final Map<Integer, VirtualConnector> connectors;
 
     public VirtualCharger(String deviceId, int connectorCount) {
+        this(deviceId, connectorCount, 1.0);
+    }
+
+    public VirtualCharger(String deviceId, int connectorCount, double timeScale) {
         if (connectorCount < 1 || connectorCount > 20) throw new IllegalArgumentException("connectorCount must be 1..20");
         this.deviceId = deviceId;
         this.connectors = IntStream.rangeClosed(1, connectorCount)
-                .boxed().collect(Collectors.toMap(id -> id, id -> new VirtualConnector(id, BigDecimal.valueOf(7.2))));
+                .boxed().collect(Collectors.toMap(id -> id, id -> new VirtualConnector(id, BigDecimal.valueOf(7.2), timeScale)));
     }
 
     public String deviceId() { return deviceId; }

@@ -3,6 +3,8 @@ package com.chargeplatform.order.event;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.annotation.EnableRabbit;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
@@ -13,6 +15,7 @@ import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Configuration
 @EnableRabbit
@@ -24,12 +27,32 @@ public class RabbitOrderEventConfig {
     }
 
     @Bean
-    Queue orderCompletedQueue(org.springframework.core.env.Environment env) {
-        return new Queue(env.getProperty("app.rabbit.queue", "charge.order.completed"), true);
+    DirectExchange orderDeadLetterExchange(org.springframework.core.env.Environment env) {
+        return new DirectExchange(env.getProperty("app.rabbit.dead-letter-exchange", "charge.order.dlx"));
     }
 
     @Bean
-    Binding orderCompletedBinding(Queue orderCompletedQueue, TopicExchange orderExchange,
+    Queue orderCompletedQueue(org.springframework.core.env.Environment env) {
+        return QueueBuilder.durable(env.getProperty("app.rabbit.queue", "charge.order.completed"))
+                .deadLetterExchange(env.getProperty("app.rabbit.dead-letter-exchange", "charge.order.dlx"))
+                .deadLetterRoutingKey(env.getProperty("app.rabbit.dead-letter-routing-key", "order.completed.failed"))
+                .build();
+    }
+
+    @Bean
+    Queue orderDeadLetterQueue(org.springframework.core.env.Environment env) {
+        return QueueBuilder.durable(env.getProperty("app.rabbit.dead-letter-queue", "charge.order.completed.dlq")).build();
+    }
+
+    @Bean
+    Binding orderDeadLetterBinding(@Qualifier("orderDeadLetterQueue") Queue orderDeadLetterQueue, DirectExchange orderDeadLetterExchange,
+                                  org.springframework.core.env.Environment env) {
+        return BindingBuilder.bind(orderDeadLetterQueue).to(orderDeadLetterExchange)
+                .with(env.getProperty("app.rabbit.dead-letter-routing-key", "order.completed.failed"));
+    }
+
+    @Bean
+    Binding orderCompletedBinding(@Qualifier("orderCompletedQueue") Queue orderCompletedQueue, TopicExchange orderExchange,
                                   org.springframework.core.env.Environment env) {
         return BindingBuilder.bind(orderCompletedQueue).to(orderExchange)
                 .with(env.getProperty("app.rabbit.routing-key", "order.completed"));

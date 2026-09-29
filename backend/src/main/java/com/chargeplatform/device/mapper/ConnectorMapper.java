@@ -10,9 +10,7 @@ import java.util.List;
 
 @Mapper
 public interface ConnectorMapper extends BaseMapper<Connector> {
-    @Select("SELECT COALESCE(MAX(id), 0) + 1 FROM connector")
-    Long nextId();
-    @Select("SELECT * FROM connector WHERE charger_id = #{chargerId}")
+    @Select("SELECT * FROM connector WHERE charger_id = #{chargerId} ORDER BY id ASC")
     List<Connector> selectByChargerId(@Param("chargerId") Long chargerId);
 
     @Select("SELECT COUNT(*) > 0 FROM connector WHERE charger_id = #{chargerId}")

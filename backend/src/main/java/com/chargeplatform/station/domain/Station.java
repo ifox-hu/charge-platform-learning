@@ -7,6 +7,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @TableName("station")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -18,26 +20,41 @@ public class Station {
     private String address;
     private String status;
     private String description;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
+    private String coordinateType;
 
     public Station(String name, String address, String description) {
-        this.name = name;
-        this.address = address;
-        this.description = description;
-        this.status = "OPERATING";
+        this(name, address, description, null, null, null);
     }
 
-    public Station(Long id, String name, String address, String description) {
-        this.id = id;
+    public Station(String name, String address, String description, BigDecimal latitude, BigDecimal longitude, String coordinateType) {
         this.name = name;
         this.address = address;
         this.description = description;
         this.status = "OPERATING";
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.coordinateType = coordinateType;
     }
 
     public void update(String name, String address, String description, String status) {
+        update(name, address, description, status, latitude, longitude, coordinateType);
+    }
+
+    public void update(String name, String address, String description, String status, BigDecimal latitude, BigDecimal longitude, String coordinateType) {
         this.name = name;
         this.address = address;
         this.description = description;
         this.status = status;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.coordinateType = coordinateType;
+    }
+
+    public void updateCoordinates(BigDecimal latitude, BigDecimal longitude, String coordinateType) {
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.coordinateType = coordinateType;
     }
 }

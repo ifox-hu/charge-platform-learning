@@ -38,6 +38,11 @@ public class PriceController {
         return ApiResponse.success(service.list(stationId));
     }
 
+    @PutMapping("/{id}")
+    public ApiResponse<PricePeriod> update(@PathVariable Long id, @Valid @RequestBody Request r) {
+        return ApiResponse.success(service.update(id, r.stationId(), r.startTime(), r.endTime(), r.electricityPrice(), r.servicePrice()));
+    }
+
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         service.delete(id);
