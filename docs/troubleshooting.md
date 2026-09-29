@@ -9,7 +9,7 @@ docker compose -f docker-compose.server.yml logs --tail 80 backend frontend rabb
 
 ## 后端启动但页面没有业务数据
 
-`/api/health` 只检查服务存活。确认 MySQL 中存在 `sys_user`、`station`、`charger`、`connector`、`price_period`、`charge_order`，并执行了需要的 V2~V4 迁移。再检查 `.env` 中的 `MYSQL_USER`、`MYSQL_PASSWORD` 是否与旧数据卷里的真实账号一致。`MYSQL_ROOT_PASSWORD` 环境变量不会修改已有数据库的 root 密码。
+`/api/health` 只检查服务存活。全新库应确认 V1～V4 已依次运行、六张基础表和 `audit_log` 存在；演示账号只在手动运行 `docs/demo_seed.sql` 后才有。已有库不要执行 V1。再检查 `.env` 中的 `MYSQL_USER`、`MYSQL_PASSWORD` 是否与旧数据卷里的真实账号一致。`MYSQL_ROOT_PASSWORD` 环境变量不会修改已有数据库的 root 密码。
 
 ## RabbitMQ unhealthy
 

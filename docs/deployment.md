@@ -7,7 +7,7 @@
 | `docker-compose.yml` | 联网主机、首次构建 | `http://localhost:5173` | Docker 多阶段构建 |
 | `docker-compose.server.yml` | 离线服务器、复用现有镜像 | `https://服务器IP` | 本地编译的 JAR 和 `frontend/dist` |
 
-部署前必须准备**已有基础数据库**，见[数据库与迁移](database.md)。MySQL 容器 `healthy` 只表示服务可连接，不表示业务表和管理员账号已经存在。
+全新空数据卷会自动执行 `docs/db/V1~V4` 建表，但不会自动创建演示账号。已有数据卷不会重复执行这些 SQL，保留原数据并只补缺失迁移，见[数据库与迁移](database.md)。MySQL 容器 `healthy` 只表示服务可连接，不表示登录账号已经存在。
 
 ## 1. 配置 `.env`
 
@@ -58,7 +58,7 @@ backend/target/charge-platform-learning-0.1.0-SNAPSHOT.jar
 simulator/target/charge-platform-simulator-0.1.0-SNAPSHOT.jar
 frontend/dist/
 frontend/nginx.conf
-docs/db/（只在确需迁移时使用）
+docs/db/（全新数据卷首次初始化或已有库按需迁移）
 ```
 
 服务器要已有 `centos7-jdk17:latest`、`nginx:1.22.1`、`mysql:8.0.30`、`redis:7.0.10`、`rabbitmq:3.13-management` 镜像。用 `docker image inspect ...` 检查。`docker-compose.server.yml` 中设置 `pull_policy: never`，不会替你下载镜像。

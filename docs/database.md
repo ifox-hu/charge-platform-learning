@@ -1,48 +1,85 @@
-# 数据库、迁移与备份
+# 数据库建表、迁移与演示数据
 
-项目默认连接 MySQL 的 `charge_platform` 库。后端使用 MyBatis-Plus，不会自动生成基础业务表，也不会自动创建演示账号。基础表包括 `sys_user`、`station`、`charger`、`connector`、`price_period`、`charge_order`。仓库中的 `docs/db` 只有 V2~V4 增量脚本；新空库不能只执行这些脚本。
+建表文件依据现有 `charge_platform` MySQL 8 备份中的表结构整理，只保留 DDL，**没有复制你的用户密码散列、车牌、订单、审计记录或真实站点地址**。它是学习和新环境部署用的参考基线；现有服务器数据库不需要重建。
 
-## 使用已有数据库
+## 脚本清单与执行顺序
 
-先确认原库确实包含这些表和可登录用户，再备份。以下是在宿主机装有 MySQL 客户端时的交互式示例，`-p` 会提示输入密码，不把密码写进命令历史：
+| 顺序 | 文件 | 作用 | 是否自动执行 |
+|---:|---|---|---|
+| 1 | [`db/V1__baseline_schema.sql`](db/V1__baseline_schema.sql) | 建 `sys_user`、`station`、`charger`、`connector`、`price_period`、`charge_order` 六张基础表 | 全新 Docker MySQL 数据卷首次启动 |
+| 2 | [`db/V2__station_coordinates.sql`](db/V2__station_coordinates.sql) | 站点 GCJ-02 经纬度及索引 | 同上 |
+| 3 | [`db/V3__order_test_and_archive.sql`](db/V3__order_test_and_archive.sql) | 测试订单与归档字段、索引 | 同上 |
+| 4 | [`db/V4__audit_log.sql`](db/V4__audit_log.sql) | 审计表及索引 | 同上 |
+| 可选 | [`demo_seed.sql`](demo_seed.sql) | 本地演示账号、站点、三台桩、八把枪及全天电价 | **不会自动执行** |
+
+`docker-compose.yml` 和 `docker-compose.server.yml` 都把 `docs/db/` 挂载到 MySQL 初始化目录。MySQL 官方镜像**仅在空数据卷第一次初始化时**按文件名顺序执行其中的 SQL。已有数据卷即使更新了文件，也不会自动补迁移。`demo_seed.sql` 特意放在 `docs/db/` 外，避免部署时自动创建弱口令账号。
+
+## 路线 A：全新空库
+
+先复制 `.env.example` 为 `.env`，设置自己的数据库密码和 JWT 密钥，再启动：
 
 ```bash
-mysqldump -h 127.0.0.1 -uroot -p \
-  --single-transaction --routines --events --triggers \
-  charge_platform > charge_platform_backup.sql
-test -s charge_platform_backup.sql && echo '备份文件非空'
+docker compose -f docker-compose.yml up -d --build
+docker compose -f docker-compose.yml ps
 ```
 
-如果 MySQL 在 Docker 中、宿主机没有客户端，可用容器内 `mysqldump`。要使用**数据库中真实有效的账号**；容器环境变量中的密码值可能与旧数据卷里的账号不一致。不要把密码、完整 `.env` 或 SQL 备份粘贴到公开聊天或 GitHub。
-
-## 迁移脚本
-
-| 文件 | 作用 | 前置条件 |
-|---|---|---|
-| `V2__station_coordinates.sql` | `station` 经纬度及坐标类型 | 已有 `station` 表 |
-| `V3__order_test_and_archive.sql` | 测试订单、归档标记 | 已有 `charge_order` 表 |
-| `V4__audit_log.sql` | 创建 `audit_log` 表和索引 | MySQL 8 |
-
-如果旧库尚未执行过某个版本，按 V2 → V3 → V4 顺序执行。示例：
+V1～V4 会自动运行。此时只有表结构，没有业务数据和登录账号。仅在**本地隔离开发环境**需要快速体验时，手动导入演示数据：
 
 ```bash
+docker compose -f docker-compose.yml exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot "$MYSQL_DATABASE"' < docs/demo_seed.sql
+```
+
+PowerShell 不支持上述 `<` 输入重定向；可使用：
+
+```powershell
+Get-Content .\docs\demo_seed.sql -Raw -Encoding UTF8 | docker compose -f docker-compose.yml exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot "$MYSQL_DATABASE"'
+```
+
+演示账号是 `demo_admin` 和 `demo_operator`，密码仅用于本地演示，为 `123456`。**不要在能被其他人访问的环境使用这些账号**。演示站点地址是占位文本，经纬度为空，地图上需要自行编辑真实地址和坐标。若在没有演示数据的情况下访问登录接口，会收到用户名或密码错误。
+
+使用主机 MySQL 客户端手动建库时，先创建空数据库：
+
+```sql
+CREATE DATABASE charge_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+```
+
+然后在项目根目录按 V1→V4 顺序运行：
+
+```bash
+mysql -h 127.0.0.1 -uroot -p charge_platform < docs/db/V1__baseline_schema.sql
 mysql -h 127.0.0.1 -uroot -p charge_platform < docs/db/V2__station_coordinates.sql
 mysql -h 127.0.0.1 -uroot -p charge_platform < docs/db/V3__order_test_and_archive.sql
 mysql -h 127.0.0.1 -uroot -p charge_platform < docs/db/V4__audit_log.sql
 ```
 
-这些 SQL 没有 `IF NOT EXISTS`，**不要重复执行**。先用 `SHOW COLUMNS FROM station LIKE 'latitude';`、`SHOW COLUMNS FROM charge_order LIKE 'test_order';` 和 `SHOW TABLES LIKE 'audit_log';` 检查是否已完成。
+## 路线 B：已有库
 
-V3 会把执行前的订单默认标记为测试订单，清理接口只归档已完成的测试订单。若你的库已有真实订单，需要先评估数据，再决定是否直接执行该脚本。
+**不要执行 V1，也不要执行演示数据脚本。**先备份，查看已有字段，再只执行缺少的 V2、V3 或 V4。重复执行增量脚本会报“字段/表已存在”；这不是可以忽略的幂等操作。
 
-## 恢复
+```sql
+SHOW TABLES;
+SHOW COLUMNS FROM station LIKE 'latitude';
+SHOW COLUMNS FROM charge_order LIKE 'test_order';
+SHOW TABLES LIKE 'audit_log';
+```
 
-在测试库或停机窗口恢复；恢复会覆盖目标库当前状态，应先保留一份新的备份。
+V3 把执行前的订单默认标为测试订单。若已有真实订单，先评估数据再执行，不要直接把真实订单纳入“清理测试订单”的范围。
+
+## 备份与恢复
+
+主机安装 MySQL 客户端时可用交互式 `-p`，避免密码出现在命令历史中：
+
+```bash
+mysqldump -h 127.0.0.1 -uroot -p --single-transaction --routines --events --triggers charge_platform > charge_platform_backup.sql
+test -s charge_platform_backup.sql && echo '备份文件非空'
+```
+
+恢复会替换目标数据库当前数据，先确认库名和备份文件：
 
 ```bash
 mysql -h 127.0.0.1 -uroot -p charge_platform < charge_platform_backup.sql
 ```
 
-恢复后检查六张基础表、迁移字段、用户账号，再启动 backend。更换服务器时还要核对 Compose 的 `MYSQL_DATA_VOLUME` 是否指向正确数据卷。
+现有数据卷中的账号密码可能与容器环境变量不同。迁移服务器时应同时核对 `MYSQL_DATA_VOLUME`、`MYSQL_CONFIG_VOLUME` 和数据库里的实际用户。不要把备份 SQL、`.env` 或密码上传 GitHub。
 
 [返回文档首页](README.md)

@@ -1,6 +1,6 @@
 # 快速开始
 
-本页给出两条运行路线：已有基础数据库时用 Compose；在本机逐个调试时用 IDEA、Maven 和 Vite。**仓库目前没有完整的基础表结构与初始账号 SQL**，因此在空 MySQL 数据卷上直接启动容器，健康检查可能通过，但站点、登录和订单接口无法正常使用。
+本页给出两条数据库路线：**全新空库**依次运行 `docs/db/V1~V4`，**已有库**保留原数据、只执行缺失迁移。之后可用 Compose 启动，或在本机分别启动 IDEA、Maven 和 Vite。
 
 ## 1. 准备软件
 
@@ -23,9 +23,9 @@ cd charge-platform-learning
 
 ## 3. 准备数据库
 
-需要一个包含基础业务表和可登录账号的 `charge_platform` 数据库。已有部署可先用[数据库文档](database.md)中的命令备份，再恢复到本地 MySQL。基础表涉及用户、站点、桩、枪、电价和订单；具体表结构应以已有数据库为准。之后按需执行 `docs/db/V2~V4` 增量脚本，不能把这些脚本当成完整建库文件。
+全新空库：`V1__baseline_schema.sql` 创建六张基础表，V2～V4 增加坐标、归档和审计。Docker MySQL 首次创建空数据卷时会按文件名顺序执行 `docs/db/` 中的 SQL。建表后没有自动创建账号；本地演示可手动执行 `docs/demo_seed.sql`，它会创建独立的 `demo_admin`、`demo_operator` 和三台模拟桩的数据。详见[数据库文档](database.md)。
 
-如果没有可用的基础库，先不要把“容器启动成功”等同于“业务可用”。登录接口会因为缺表或缺账号失败。
+已有库：先备份，**不要执行 V1 或演示数据脚本**；确认哪些增量字段/表尚缺，再执行相应 V2～V4。已有数据卷不会重新运行 Docker 初始化 SQL。
 
 ## 4. 配置运行参数
 
@@ -52,7 +52,7 @@ docker compose -f docker-compose.yml up -d --build
 docker compose -f docker-compose.yml ps
 ```
 
-看到 MySQL、Redis、RabbitMQ 和 backend 为 `healthy`、frontend 和三台 simulator 为 `Up` 后，打开 `http://localhost:5173`。后端健康检查为 `http://localhost:8081/api/health`。**普通 HTTP 局域网 IP 页面不能调用浏览器定位**，需要 HTTPS。
+看到 MySQL、Redis、RabbitMQ 和 backend 为 `healthy`、frontend 和三台 simulator 为 `Up` 后，打开 `http://localhost:5173`。如使用全新空库，可手动导入 `docs/demo_seed.sql` 后用演示账号登录。后端健康检查为 `http://localhost:8081/api/health`。**普通 HTTP 局域网 IP 页面不能调用浏览器定位**，需要 HTTPS。
 
 ## 6. 本机分别启动（适合改代码）
 

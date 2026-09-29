@@ -2,7 +2,7 @@
 
 下面先说明项目能做什么、如何运行一条完整充电链路；每个主题链接包含具体命令、配置、接口字段和排错方法。
 
-> **项目定位**：Java 17 + Spring Boot 3.5 的学习型运营平台。包括 Web 管理端、微信小程序、三台 TCP 模拟桩、MySQL、Redis 和 RabbitMQ。当前仓库**没有完整基础建表及种子数据脚本**，首次运行需要先准备已有的 `charge_platform` 基础库；`docs/db/V2~V4` 只是增量迁移。
+> **项目定位**：Java 17 + Spring Boot 3.5 的学习型运营平台。包括 Web 管理端、微信小程序、三台 TCP 模拟桩、MySQL、Redis 和 RabbitMQ。全新库可按 `docs/db/V1~V4` 建表；已有库只补缺失迁移。演示账号和设备数据在可选的 `docs/demo_seed.sql`，不会自动执行。
 
 ## 5 分钟了解系统
 
@@ -27,7 +27,7 @@
 | 启动三台桩，完成一次充电与结算 | [模拟充电桩联调](simulator.md) |
 | 在线/离线 Compose、HTTPS、更新发布 | [Docker 部署](deployment.md) |
 | 调用接口、查看 WebSocket 和消息队列 | [接口与实时通信](api-and-realtime.md) |
-| 备份、执行 V2~V4 迁移 | [数据库与迁移](database.md) |
+| V1 建表、V2~V4 迁移、备份与演示数据 | [数据库与迁移](database.md) |
 | 页面白屏、连接拒绝、定位偏差等 | [故障排查](troubleshooting.md) |
 
 已有的[详细启动与联调记录](启动与充电桩联调说明.md)保留了 Windows 和服务器实际操作步骤。
