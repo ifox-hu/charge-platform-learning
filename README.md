@@ -1,4 +1,33 @@
-# 充电桩运营平台开发手册
+# 充电桩运营平台
+
+一个可运行、可联调的充电运营平台作品，覆盖设备接入、实时状态、订单计费、消息可靠性和 Docker 部署。
+
+> GitHub Pages：启用 Actions 后访问 `https://ifox-hu.github.io/charge-platform-learning/`
+> 在线 API：需要在 GitHub 仓库 Variables 中配置 `VITE_API_BASE_URL`，例如 `https://api.example.com/api`
+> 演示账号：`demo_admin / 123456`（管理员）、`demo_operator / 123456`（运营员）
+> 本账号仅用于演示环境，请勿用于生产。
+
+## 面试体验
+
+1. 登录 Web 管理端，进入“运营看板”观察三台模拟桩和充电枪状态。
+2. 在“设备管理”或订单区域选择空闲枪，启动一次模拟充电。
+3. 观察 WebSocket 推送的功率、电压、电流和累计电量。
+4. 停止订单，查看分时电价结算、订单状态和操作审计。
+5. 使用管理员账号打开“消息监控”，查看 RabbitMQ 队列和死信处理能力。
+
+## 项目亮点
+
+- Java TCP 模拟桩还原设备接入，三台设备可同时在线联调。
+- Spring Boot 事务、行锁和提交后事件保证订单结算一致性。
+- WebSocket 推送设备状态，Redis 缓存运营看板，RabbitMQ 处理订单完成事件。
+- JWT + ADMIN/OPERATOR 权限、操作审计、订单导出和测试订单清理。
+- Docker Compose 一键初始化，GitHub Actions 自动测试、构建和 SSH 部署。
+
+## 技术栈
+
+`Java 17` `Spring Boot` `MyBatis-Plus` `Vue 3` `MySQL` `Redis` `RabbitMQ` `WebSocket` `Docker Compose`
+
+下面是完整的开发、部署和故障排查手册。
 
 这是项目的统一开发文档，覆盖环境准备、架构、本地开发、模拟桩、接口、数据库、Docker 部署和故障排查。
 
@@ -14,6 +43,9 @@
 8. [Docker 部署](#8-docker-部署)
 9. [故障排查](#9-故障排查)
 10. [验证清单](#10-验证清单)
+11. [一键初始化、自动部署与消息监控](#11-一键初始化自动部署与消息监控)
+
+面试演示脚本：[`docs/interview-demo.md`](docs/interview-demo.md)
 
 ## 1. 项目概览
 
@@ -440,3 +472,19 @@ docker compose -f docker-compose.server.yml logs --tail 80 backend frontend rabb
 | 模拟桩 | mvn test、三个 TCP 连接、START/STOP |
 | 数据库 | 备份、按 V1 到 V4 执行、检查字段索引 |
 | Docker | config --quiet、ps、日志、HTTPS、完整充电链路 |
+
+## 11. 一键初始化、自动部署与消息监控
+
+### 11.1 Docker Compose 一键初始化
+
+PowerShell 执行 `.\scripts\init-compose.ps1`，Linux/macOS 执行 `bash scripts/init-compose.sh`。脚本会在缺少 `.env` 时复制 `.env.example`，校验 Compose 配置，构建并启动全部服务，然后显示容器状态。仅在全新本地数据卷需要演示数据时追加 `--Seed`（PowerShell）或 `--seed`（Linux）；已有数据库不要重复导入 `docs/demo_seed.sql`。
+
+### 11.2 CI/CD
+
+`.github/workflows/ci.yml` 在 push 和 Pull Request 上运行后端 `mvn test`、前端 `npm ci && npm run build` 以及 Compose 配置校验。`.github/workflows/deploy.yml` 在手工触发或推送 `v*` 标签时构建两个 JAR 和前端静态文件，并通过 SSH/rsync 上传服务器，调用 `scripts/deploy-server.sh` 重建应用容器。
+
+生产仓库需要配置 GitHub Environment `production` 的 `DEPLOY_HOST`、`DEPLOY_USER`、`DEPLOY_PATH` 和 `DEPLOY_SSH_KEY` secrets。服务器提前准备 `.env`、证书、`docker-compose.server.yml` 依赖的基础镜像和数据卷；部署脚本不会删除数据卷。
+
+### 11.3 RabbitMQ 监控与死信处理
+
+管理员登录 Web 后打开“消息监控”，可以查看订单完成队列的待处理数量、消费者数量、死信数量和死信消费者数量。点击“重试死信”会把最多 100 条消息重新发送到订单交换机，点击“清空死信队列”会永久删除当前死信，操作前应先查看 RabbitMQ 管理台 `http://localhost:15672` 并确认消息内容。对应 API 为 `GET /api/rabbitmq/overview`、`POST /api/rabbitmq/dead-letters/retry?limit=100` 和 `DELETE /api/rabbitmq/dead-letters`，均要求 ADMIN 角色。

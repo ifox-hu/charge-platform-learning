@@ -1,6 +1,7 @@
 import axios from 'axios'
 
-const http = axios.create({ baseURL: '/api', timeout: 10000 })
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+const http = axios.create({ baseURL: apiBaseUrl, timeout: 10000 })
 
 export const authStore = {
   getToken: () => localStorage.getItem('charge_token'),
@@ -61,4 +62,7 @@ export const api = {
   clearCompletedTestOrders: ids => http.delete('/orders/completed-test', { data: { ids } })
   ,auditLogs: params => http.get('/audit-logs', { params }),
   cleanupAuditLogs: days => http.delete('/audit-logs/before', { params: { days } })
+  ,rabbitOverview: () => http.get('/rabbitmq/overview')
+  ,retryDeadLetters: limit => http.post('/rabbitmq/dead-letters/retry', null, { params: { limit } })
+  ,purgeDeadLetters: () => http.delete('/rabbitmq/dead-letters')
 }
