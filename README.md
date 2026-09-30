@@ -31,6 +31,21 @@
 
 仓库：https://github.com/ifox-hu/charge-platform-learning
 
+### 1.1 项目背景
+
+传统充电桩系统通常同时涉及运营管理、设备通信、订单计费和多端展示，单独调试其中一个环节很困难。本项目以“可运行、可联调、可扩展”为目标，把真实平台中最核心的链路压缩成一个学习型项目：Web 管理端和微信小程序负责操作，Spring Boot 负责业务和权限，模拟桩负责还原设备通信，MySQL 保存业务数据，Redis 和 RabbitMQ 分别承担缓存与异步事件。
+
+项目适合用于学习以下内容：
+
+- 如何从站点、充电桩、充电枪建模，并完成订单状态流转。
+- 如何用 TCP 接入设备，用 WebSocket 向前端推送实时状态。
+- 如何使用事务、行锁和分时电价保证充电结算的一致性。
+- 如何把缓存、消息队列、审计、Docker 部署整合到一个完整业务中。
+
+### 1.2 项目目标
+
+项目不模拟真实厂商协议的全部细节，而是提供一条容易观察和修改的端到端链路。开发者可以先用模拟桩完成启动、实时充电和停止结算，再逐步替换为真实设备适配器；数据库迁移、权限边界、消息失败重试和部署流程也都保留了清晰的扩展位置。
+
 ## 2. 环境准备与首次启动
 
 ### 2.1 软件
@@ -91,6 +106,56 @@ docker compose -f docker-compose.yml ps
 访问 http://localhost:5173；后端健康检查为 http://localhost:8081/api/health。局域网 IP 的浏览器定位需要 HTTPS。
 
 ## 3. 项目结构与架构
+
+### 3.1 总体架构图
+
+```mermaid
+flowchart LR
+    Web[Vue 3 Web 管理端]
+    Mini[微信小程序]
+    Nginx[Nginx / HTTPS]
+    API[Spring Boot API<br/>JWT / 权限 / 业务服务]
+    WS[WebSocket 状态推送]
+    TCP[TCP 设备适配器]
+    Sim[三台 Java 模拟充电桩]
+    MySQL[(MySQL<br/>业务数据)]
+    Redis[(Redis<br/>看板缓存)]
+    MQ[RabbitMQ<br/>订单完成事件]
+
+    Web --> Nginx
+    Mini --> Nginx
+    Nginx --> API
+    Nginx --> WS
+    API <--> WS
+    API --> MySQL
+    API --> Redis
+    API --> MQ
+    API <--> TCP
+    TCP <--> Sim
+```
+
+### 3.2 一次充电业务流程
+
+```mermaid
+sequenceDiagram
+    participant C as Web / 小程序
+    participant A as Spring Boot
+    participant D as 模拟充电桩
+    participant DB as MySQL
+    participant Q as RabbitMQ
+
+    C->>A: 登录并携带 JWT
+    C->>A: 选择空闲枪，启动订单
+    A->>DB: 校验站点、枪状态并创建订单
+    A->>D: START
+    D-->>A: STATUS / 实时电量
+    A-->>C: WebSocket 或轮询推送状态
+    C->>A: 停止订单
+    A->>D: STOP
+    D-->>A: 最终电量
+    A->>DB: 计算电费、服务费并完成订单
+    A->>Q: 提交事务后发布订单完成事件
+```
 
 ~~~text
 backend/       Spring Boot 后端、权限、订单、TCP 适配器
@@ -205,6 +270,92 @@ WebSocket 为 ws://localhost:8081/ws/status，HTTPS 页面使用 wss://。Nginx 
 
 ## 7. 数据库
 
+### 7.1 设计说明
+
+数据库围绕“站点 -> 充电桩 -> 充电枪 -> 充电订单”建立核心业务链路，分时电价挂在站点上，用户负责登录和权限，审计表记录管理操作。V2～V4 是在基础表上的增量演进：坐标用于 Web/小程序地图，订单归档字段用于清理测试订单，审计表用于追踪管理行为。
+
+### 7.2 核心表关系图
+
+```mermaid
+erDiagram
+    SYS_USER {
+        bigint id PK
+        varchar username UK
+        varchar password
+        varchar role
+        boolean enabled
+    }
+    STATION {
+        bigint id PK
+        varchar name
+        varchar address
+        decimal latitude
+        decimal longitude
+        varchar status
+    }
+    CHARGER {
+        bigint id PK
+        varchar code UK
+        bigint station_id FK
+        varchar status
+    }
+    CONNECTOR {
+        bigint id PK
+        varchar code UK
+        bigint charger_id FK
+        int rated_power
+        varchar status
+    }
+    PRICE_PERIOD {
+        bigint id PK
+        bigint station_id FK
+        time start_time
+        time end_time
+        decimal electricity_price
+        decimal service_price
+    }
+    CHARGE_ORDER {
+        bigint id PK
+        varchar order_no UK
+        bigint station_id FK
+        bigint connector_id FK
+        varchar plate_number
+        varchar status
+        decimal energy_kwh
+        decimal total_amount
+        boolean test_order
+        boolean archived
+    }
+    AUDIT_LOG {
+        bigint id PK
+        varchar username
+        varchar method
+        varchar path
+        int status_code
+        datetime created_at
+    }
+
+    STATION ||--o{ CHARGER : contains
+    CHARGER ||--o{ CONNECTOR : has
+    STATION ||--o{ PRICE_PERIOD : defines
+    STATION ||--o{ CHARGE_ORDER : receives
+    CONNECTOR ||--o{ CHARGE_ORDER : serves
+```
+
+### 7.3 表用途
+
+| 表 | 用途 |
+|---|---|
+| `sys_user` | 登录账号、角色和启用状态 |
+| `station` | 充电站基本信息、地址、状态和 GCJ-02 坐标 |
+| `charger` | 站内充电桩设备及在线状态 |
+| `connector` | 充电枪、额定功率和空闲/充电状态 |
+| `price_period` | 站点分时电价和服务费 |
+| `charge_order` | 车牌、充电时间、电量、费用、测试标记和归档状态 |
+| `audit_log` | 管理员/运营员操作、请求路径、状态码和时间 |
+
+### 7.4 数据库脚本顺序
+
 V1 建立 sys_user、station、charger、connector、price_period、charge_order；V2 增加坐标；V3 增加 test_order、archived、archived_at；V4 建立 audit_log。
 
 手动建库：
@@ -289,5 +440,3 @@ docker compose -f docker-compose.server.yml logs --tail 80 backend frontend rabb
 | 模拟桩 | mvn test、三个 TCP 连接、START/STOP |
 | 数据库 | 备份、按 V1 到 V4 执行、检查字段索引 |
 | Docker | config --quiet、ps、日志、HTTPS、完整充电链路 |
-
-所有开发说明已统一到本文件；`docs/` 仅保留数据库迁移脚本和本地演示数据脚本。
