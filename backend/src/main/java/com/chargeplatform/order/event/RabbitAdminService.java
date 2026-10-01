@@ -6,6 +6,8 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -13,6 +15,7 @@ import java.util.Map;
 @Service
 @ConditionalOnProperty(name = "app.rabbit.enabled", havingValue = "true")
 public class RabbitAdminService {
+    private static final Logger log = LoggerFactory.getLogger(RabbitAdminService.class);
     private final RabbitAdmin admin;
     private final RabbitTemplate template;
     private final Environment env;
@@ -27,14 +30,23 @@ public class RabbitAdminService {
     }
 
     public int retryDeadLetters(int limit) {
-        int count = 0; int max = Math.max(1, Math.min(limit, 500));
-        while (count < max) {
-            Message message = template.receive(deadQueue(), 100);
-            if (message == null) break;
-            template.send(exchange(), routingKey(), message);
-            count++;
+        int max = Math.max(1, Math.min(limit, 500));
+        int available = count(deadQueue(), "QUEUE_MESSAGE_COUNT");
+        if (available == 0) return 0;
+        int count = 0;
+        try {
+            while (count < Math.min(max, available)) {
+                Message message = template.receive(deadQueue(), 100);
+                if (message == null) break;
+                template.send(exchange(), routingKey(), message);
+                count++;
+            }
+            return count;
+        } catch (Exception exception) {
+            log.error("重试 RabbitMQ 死信失败: queue={}, exchange={}, routingKey={}, retried={}",
+                    deadQueue(), exchange(), routingKey(), count, exception);
+            throw new IllegalStateException("RabbitMQ 死信队列暂时不可用，请检查 RabbitMQ 连接和队列配置", exception);
         }
-        return count;
     }
 
     public int purgeDeadLetters() {

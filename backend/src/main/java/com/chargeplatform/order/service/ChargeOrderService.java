@@ -41,6 +41,12 @@ public class ChargeOrderService {
     @Transactional
     @CacheEvict(cacheNames = "dashboard", key = "'summary'")
     public ChargeOrder start(OrderRequests.Start request){
+        return start(request, null);
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = "dashboard", key = "'summary'")
+    public ChargeOrder start(OrderRequests.Start request, String ownerUsername){
         var station = stations.selectById(request.stationId());
         if(station == null) throw new BusinessException(404,"充电站不存在");
         if(!"OPERATING".equals(station.getStatus())) throw new BusinessException(409,"充电站当前未运营");
@@ -54,6 +60,7 @@ public class ChargeOrderService {
         connector.changeStatus("CHARGING"); connectors.updateById(connector);
         String no="CO"+java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))+ThreadLocalRandom.current().nextInt(100,1000);
         ChargeOrder order = new ChargeOrder(no,request.stationId(),request.connectorId(),request.plateNumber().trim(), Boolean.TRUE.equals(request.testOrder()));
+        if (ownerUsername != null) order.assignCustomer(ownerUsername);
         orders.insert(order);
         try {
             confirmSimulatorCommand("START", order.getConnectorId(), "CHARGING");
@@ -184,6 +191,29 @@ public class ChargeOrderService {
             .orderByDesc(ChargeOrder::getId));
     }
     public ChargeOrder get(Long id){ChargeOrder order=orders.selectById(id);if(order==null || Boolean.TRUE.equals(order.getArchived())) throw new BusinessException(404,"订单不存在");return order;}
+    public ChargeOrder customerOrder(Long id, String username) {
+        ChargeOrder order = get(id);
+        if (!username.equals(order.getOwnerUsername())) throw new BusinessException(404, "订单不存在");
+        return order;
+    }
+    public List<ChargeOrder> customerOrders(String username) {
+        return orders.selectList(new LambdaQueryWrapper<ChargeOrder>()
+                .eq(ChargeOrder::getOwnerUsername, username).eq(ChargeOrder::getArchived, false)
+                .orderByDesc(ChargeOrder::getId));
+    }
+    @Transactional
+    public ChargeOrder mockPay(Long id, String username, String method) {
+        if (!List.of("WECHAT", "ALIPAY").contains(method)) throw new BusinessException(400, "请选择支付方式");
+        ChargeOrder order = orders.selectByIdForUpdate(id);
+        if (order == null || Boolean.TRUE.equals(order.getArchived()) || !username.equals(order.getOwnerUsername()))
+            throw new BusinessException(404, "订单不存在");
+        if (!"COMPLETED".equals(order.getStatus())) throw new BusinessException(409, "请先结束充电并结算");
+        if ("PAID".equals(order.getPaymentStatus())) return order;
+        if (!"UNPAID".equals(order.getPaymentStatus())) throw new BusinessException(409, "该订单无需支付");
+        order.payMock(method);
+        orders.updateById(order);
+        return order;
+    }
     @Transactional
     @CacheEvict(cacheNames = "dashboard", key = "'summary'")
     public int clearCompletedTestOrders(List<Long> ids) {

@@ -4,6 +4,8 @@ services:
     pull_policy: never
     restart: unless-stopped
     init: true
+    ports:
+      - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-charge_platform}
@@ -25,6 +27,8 @@ services:
     pull_policy: never
     restart: unless-stopped
     init: true
+    ports:
+      - "6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -44,6 +48,7 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
     ports:
+      - "5672:5672"
       - "15672:15672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
@@ -63,6 +68,8 @@ services:
     volumes:
       - ./simulator/target/charge-platform-simulator-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
     entrypoint: ["java", "-jar", "/app/app.jar"]
+    ports:
+      - "9100:9100"
     environment:
       JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-001 -Dsimulator.connectors=2 -Dsimulator.time-scale=${SIMULATOR_TIME_SCALE:-1}"
     expose: ["9100"]
@@ -75,6 +82,8 @@ services:
     volumes:
       - ./simulator/target/charge-platform-simulator-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
     entrypoint: ["java", "-jar", "/app/app.jar"]
+    ports:
+      - "9101:9100"
     environment:
       JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-002 -Dsimulator.connectors=2 -Dsimulator.time-scale=${SIMULATOR_TIME_SCALE:-1}"
     expose: ["9100"]
@@ -87,6 +96,8 @@ services:
     volumes:
       - ./simulator/target/charge-platform-simulator-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
     entrypoint: ["java", "-jar", "/app/app.jar"]
+    ports:
+      - "9102:9100"
     environment:
       JAVA_TOOL_OPTIONS: "-Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-003 -Dsimulator.connectors=4 -Dsimulator.time-scale=${SIMULATOR_TIME_SCALE:-1}"
     expose: ["9100"]

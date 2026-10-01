@@ -24,6 +24,18 @@ public class ChargeOrder {
     private BigDecimal electricityFee;
     private BigDecimal serviceFee;
     private BigDecimal totalAmount;
+    private String ownerUsername;
+    private String paymentStatus = "NOT_REQUIRED";
+    private String paymentMethod;
+    private String paymentNo;
+    private LocalDateTime paidAt;
+    public void assignCustomer(String username) { this.ownerUsername = username; this.paymentStatus = "UNPAID"; }
+    public void payMock(String method) {
+        this.paymentStatus = "PAID";
+        this.paymentMethod = method;
+        this.paymentNo = "MOCK-" + java.util.UUID.randomUUID();
+        this.paidAt = LocalDateTime.now();
+    }
     public ChargeOrder(String orderNo, Long stationId, Long connectorId, String plateNumber) {
         this(orderNo, stationId, connectorId, plateNumber, false);
     }
