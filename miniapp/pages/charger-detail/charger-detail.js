@@ -97,13 +97,13 @@ Page({
     this.setData({ selectedConnector: connector })
   },
   openActiveOrder(connector) {
-    request({ url: '/orders' }).then(orders => {
+    request({ url: '/customer/orders' }).then(orders => {
       const order = (orders || []).find(item => item.connectorId === connector.id && item.status === 'CHARGING')
       if (!order) {
         wx.showToast({ title: '订单状态正在同步，请刷新重试', icon: 'none' })
         return this.loadData()
       }
-      request({ url: `/orders/${order.id}/live` })
+      request({ url: `/customer/orders/${order.id}/live` })
         .then(live => this.setData({ activeOrder: order, activeOrderLive: live }))
         .catch(() => this.setData({ activeOrder: order, activeOrderLive: null }))
     })
@@ -120,13 +120,13 @@ Page({
     const plateNumber = `${this.data.plateRegion}${this.data.plateLetter}${this.data.plateDigits || ''}`
     if (!/^[\u4e00-\u9fa5][A-Z][0-9]{5,6}$/.test(plateNumber)) return wx.showToast({ title: '请选择地区、字母并输入5或6位数字', icon: 'none' })
     this.setData({ starting: true })
-    request({ url: '/orders/start', method: 'POST', data: { stationId: Number(this.stationId), connectorId: this.data.selectedConnector.id, plateNumber, testOrder: true } })
+    request({ url: '/customer/orders/start', method: 'POST', data: { stationId: Number(this.stationId), connectorId: this.data.selectedConnector.id, plateNumber } })
       .then(order => wx.redirectTo({ url: `/pages/current-order/current-order?id=${order.id}&package=${this.data.selectedPackage}&power=${this.data.selectedConnector.ratedPower || 7.2}` }))
       .finally(() => this.setData({ starting: false }))
   },
   settleOrder() {
     this.setData({ settling: true })
-    request({ url: `/orders/${this.data.activeOrder.id}/stop`, method: 'POST', data: {} })
+    request({ url: `/customer/orders/${this.data.activeOrder.id}/stop`, method: 'POST', data: {} })
       .then(() => {
         wx.showToast({ title: '订单已结单' })
         this.setData({ activeOrder: null, activeOrderLive: null })

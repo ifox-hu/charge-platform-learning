@@ -1,7 +1,7 @@
 const { request } = require('../../utils/request')
 
 Page({
-  data: { order: null, loading: true, error: '', energyKwh: '0.000', simulatorEnergyKwh: '0.000', simulatorPowerKw: '0.0', simulatorCurrentA: '0.0', simulatorCharging: null, stopping: false, progress: 0, remainingLabel: '', simulated: true },
+  data: { order: null, loading: true, error: '', energyKwh: '0.000', simulatorEnergyKwh: '0.000', simulatorPowerKw: '0.0', simulatorCurrentA: '0.0', simulatorCharging: null, stopping: false, paying: false, paymentMethod: 'WECHAT', progress: 0, remainingLabel: '', simulated: true },
   onLoad(options) {
     this.orderId = options.id
     this.packageCode = options.package || 'FULL'
@@ -23,7 +23,7 @@ Page({
   },
   loadOrder() {
     this.setData({ loading: true, error: '' })
-    return request({ url: `/orders/${this.orderId}` }).then(order => {
+    return request({ url: `/customer/orders/${this.orderId}` }).then(order => {
       this.setData({ order, loading: false })
       if (order.status === 'CHARGING') {
         this.loadSimulatorStatus()
@@ -54,7 +54,7 @@ Page({
   },
   loadSimulatorStatus() {
     if (!this.data.order) return Promise.resolve()
-    return request({ url: `/orders/${this.orderId}/live` }).then(live => {
+    return request({ url: `/customer/orders/${this.orderId}/live` }).then(live => {
       this.setData({ simulatorCharging: live.status === 'CHARGING', simulatorEnergyKwh: live.energyKwh == null ? '0.000' : Number(live.energyKwh).toFixed(3), simulatorPowerKw: live.powerKw == null ? '0.0' : Number(live.powerKw).toFixed(1), simulatorCurrentA: live.currentA == null ? '0.0' : Number(live.currentA).toFixed(1) })
     }).catch(() => {})
   },
@@ -67,9 +67,16 @@ Page({
   stopCharging() {
     this.clearSimulation()
     this.setData({ stopping: true })
-    request({ url: `/orders/${this.orderId}/stop`, method: 'POST', data: {} })
+    request({ url: `/customer/orders/${this.orderId}/stop`, method: 'POST', data: {} })
       .then(order => { this.setData({ order, simulatorCharging: false }); wx.showToast({ title: '充电已结束' }) })
       .catch(() => this.startSimulation())
       .finally(() => this.setData({ stopping: false }))
+  },
+  choosePayment(event) { this.setData({ paymentMethod: event.currentTarget.dataset.method }) },
+  mockPay() {
+    this.setData({ paying: true })
+    request({ url: `/customer/orders/${this.orderId}/mock-payment`, method: 'POST', data: { method: this.data.paymentMethod } })
+      .then(order => { this.setData({ order }); wx.showToast({ title: '模拟支付成功' }) })
+      .finally(() => this.setData({ paying: false }))
   }
 })
