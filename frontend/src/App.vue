@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { api, authStore, demoMode } from './api'
-import { assessLocation, callbackResult, isChinaCoordinate, requestBrowserLocation, toLocationArray } from './mapLocation'
+import { callbackResult, isChinaCoordinate, toLocationArray } from './mapLocation'
 
 const menus = [
   { key: 'dashboard', icon: '⌁', label: '运营看板' },
@@ -25,13 +25,13 @@ const dependencyHealth = ref({ redis: 'UNKNOWN', rabbitmq: 'UNKNOWN' })
 const simulatorStatus = ref({ enabled: false, devices: [] })
 const mapContainer = ref(null)
 const mapError = ref('')
-const mapLocationLabel = ref('正在获取当前位置')
-const mapLocating = ref(false)
-const mapAddress = ref('')
-const mapAddressResults = ref([])
-const mapAddressSearching = ref(false)
-const pendingMapLocation = ref(null)
-const mapPosition = ref(null)
+const mapLocationLabel = ref('站点地图')
+const mapStationKeyword = ref('')
+const selectedMapStationId = ref(null)
+const mapStationResults = computed(() => {
+  const keyword = mapStationKeyword.value.trim().toLowerCase()
+  return stations.value.filter(station => !keyword || `${station.name || ''} ${station.address || ''}`.toLowerCase().includes(keyword))
+})
 const demoMapFallback = ref(false)
 const demoMapLocation = ref([113.394, 23.057])
 const demoMapMarkers = computed(() => stations.value.map((station, index) => ({
@@ -44,8 +44,6 @@ let mapScriptPromise
 let mapElement
 let mapTileTimer
 let mapInitVersion = 0
-let locationRequestInFlight = null
-let locationAttempted = false
 const stations = ref([])
 const stationRows = ref([])
 const chargers = ref([])
@@ -157,7 +155,7 @@ function loadAmap() {
   })
   return mapScriptPromise
 }
-async function initStationMap(requestLocation = false, recenter = false) {
+async function initStationMap(recenter = false) {
   const version = ++mapInitVersion
   const container = mapContainer.value
   if (!container) return
@@ -169,7 +167,7 @@ async function initStationMap(requestLocation = false, recenter = false) {
     if (version !== mapInitVersion) return
     demoMapFallback.value = true
     mapError.value = ''
-    mapLocationLabel.value = '示意地图，尚未获取当前位置'
+    mapLocationLabel.value = '站点示意地图'
     return
   }
   try {
@@ -177,35 +175,18 @@ async function initStationMap(requestLocation = false, recenter = false) {
     demoMapFallback.value = false
     const AMap = await loadAmap()
     if (!isCurrent()) return
-    if (requestLocation || !locationAttempted) {
-      mapLocationLabel.value = '正在获取当前位置'
-      mapLocating.value = true
-      let result
-      try { result = await getBrowserLocation(AMap) } finally { mapLocating.value = false }
-      if (!isCurrent()) return
-      locationAttempted = true
-      const assessed = assessLocation(result, mapPosition.value)
-      pendingMapLocation.value = assessed.distance ? assessed : null
-      if (assessed.accepted) {
-        mapPosition.value = { ...result, source: 'device', label: `设备定位（误差约 ${Math.ceil(result.accuracy)} 米）` }
-        recenter = true
-        mapLocationLabel.value = mapPosition.value.label
-      } else {
-        mapLocationLabel.value = assessed.distance ? assessed.error
-          : `${assessed.error}；${mapPosition.value ? '保留上次位置' : '尚未获取当前位置，可输入地址查找'}`
-      }
-    }
-    if (!isCurrent()) return
-    const currentLocation = mapPosition.value?.location
-    const stationCenter = stations.value.map(station => toLocationArray([station.longitude, station.latitude])).find(Boolean)
-    const center = currentLocation || stationCenter || demoMapLocation.value
+    const selectedStation = stations.value.find(station => station.id === selectedMapStationId.value)
+    const stationCenter = toLocationArray([selectedStation?.longitude, selectedStation?.latitude])
+      || stations.value.map(station => toLocationArray([station.longitude, station.latitude])).find(Boolean)
+    const center = stationCenter || demoMapLocation.value
     demoMapLocation.value = center
+    const creatingMap = !mapInstance || mapElement !== container
     if (mapInstance && mapElement !== container) {
       mapInstance.destroy()
       mapInstance = null
       mapElement = null
     }
-    const mapZoom = currentLocation ? 17 : 14
+    const mapZoom = 14
     if (!mapInstance) {
       mapInstance = new AMap.Map(container, { zoom: mapZoom, center })
       mapElement = container
@@ -246,30 +227,25 @@ async function initStationMap(requestLocation = false, recenter = false) {
     if (!isCurrent() || !mapInstance) return
     mapInstance.clearMap()
     points.forEach(({ station, location }) => {
-      const marker = new AMap.Marker({ position: location, title: station.name, label: { content: `<div class="map-label">${station.name}</div>`, direction: 'top' } })
-      marker.on('click', () => show(`${station.name} · ${station.address || '暂无地址'}`))
+      const escape = value => String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]))
+      const selected = station.id === selectedMapStationId.value
+      const marker = new AMap.Marker({
+        position: location, title: station.name, anchor: 'bottom-center',
+        content: `<div class="station-map-pin${selected ? ' is-selected' : ''}"><div class="station-pin-card"><span class="station-pin-icon">ϟ</span><div><strong>${escape(station.name)}</strong><span class="station-pin-status${station.status === 'CLOSED' ? ' is-closed' : ''}">${station.status === 'CLOSED' ? '已关闭' : '运营中'}</span></div></div><i class="station-pin-dot"></i></div>`
+      })
+      marker.on('click', () => selectMapStation(station))
       mapInstance.add(marker)
     })
-    if (currentLocation) {
-      const label = mapPosition.value.source === 'manual' ? '手动选择的位置' : '设备定位位置'
-      const locationMarker = new AMap.Marker({ position: currentLocation, title: label, anchor: 'bottom-center', content: `<div class="map-user-location"><span>${label}</span><i></i></div>` })
-      mapInstance.add(locationMarker)
+    const focusPoint = selectedMapStationId.value == null ? points[0] : points.find(item => item.station.id === selectedMapStationId.value)
+    if (focusPoint && (recenter || creatingMap)) {
+      mapInstance.setCenter(focusPoint.location)
+      mapInstance.setZoom(14)
+      demoMapLocation.value = focusPoint.location
     }
-    // Never fit every station into the viewport: demo data can span several
-    // provinces and would make the quick-demo map zoom out to a whole region.
-    // Keep the configured demo center at a useful city-level zoom instead.
-    if (currentLocation && recenter) {
-      // Re-apply after markers are added so a stale map instance or a pending
-      // fit operation cannot widen the quick-demo viewport to a province.
-      mapInstance.setCenter(center)
-      mapInstance.setZoom(mapZoom)
-      window.setTimeout(() => {
-        if (isCurrent() && mapInstance) {
-          mapInstance.setCenter(center)
-          mapInstance.setZoom(mapZoom)
-        }
-      }, 250)
+    if (recenter && selectedMapStationId.value != null && !points.some(item => item.station.id === selectedMapStationId.value)) {
+      show('该站点暂无有效坐标，请补充完整省市地址', true)
     }
+    mapLocationLabel.value = selectedStation ? `${selectedStation.name} · ${selectedStation.address || '暂无地址'}` : `共 ${stations.value.length} 个站点`
     mapError.value = unresolvedStations
       ? `${unresolvedStations} 个站点地址暂未解析出有效坐标，请补充省市信息`
       : ''
@@ -292,60 +268,23 @@ async function initStationMap(requestLocation = false, recenter = false) {
     if (demoMode) {
       demoMapFallback.value = true
       mapError.value = ''
-      mapLocationLabel.value = mapPosition.value ? `${mapPosition.value.label}；地图暂不可用` : '地图暂不可用，尚未获取当前位置'
+      mapLocationLabel.value = '站点示意地图，真实地图暂不可用'
     } else {
       demoMapFallback.value = true
       mapError.value = `真实地图暂不可用：${error.message || '地图加载失败'}`
-      mapLocationLabel.value = mapPosition.value ? `${mapPosition.value.label}；地图暂不可用` : '地图暂不可用，尚未获取当前位置'
+      mapLocationLabel.value = '站点示意地图，真实地图暂不可用'
     }
   }
 }
-function refreshPage() { window.location.reload() }
-async function relocateMap() {
-  if (mapLocating.value || mapAddressSearching.value) return
-  mapLocating.value = true
-  try { await initStationMap(true) } finally { mapLocating.value = false }
-}
-async function usePendingMapLocation() {
-  const candidate = pendingMapLocation.value
-  if (!candidate) return
-  mapPosition.value = { location: candidate.location, accuracy: candidate.accuracy, source: 'device', label: `已采用新设备位置（误差约 ${Math.ceil(candidate.accuracy)} 米）` }
-  pendingMapLocation.value = null
-  mapLocationLabel.value = mapPosition.value.label
-  await initStationMap(false, true)
-}
-async function searchMapAddress() {
-  const address = mapAddress.value.trim()
-  if (!address || mapAddressSearching.value || mapLocating.value) return
-  // Invalidate earlier location/marker callbacks before a manual search.
-  const version = ++mapInitVersion
-  mapAddressSearching.value = true
-  mapAddressResults.value = []
-  try {
-    const AMap = await loadAmap()
-    if (version !== mapInitVersion) return
-    const result = await callbackResult(finish => new AMap.Geocoder().getLocation(address, (status, data) => finish(status === 'complete' ? data : null)))
-    if (version !== mapInitVersion) return
-    mapAddressResults.value = (result?.geocodes || []).map(item => ({ address: item.formattedAddress, location: toLocationArray(item.location) })).filter(item => item.location)
-    if (!mapAddressResults.value.length) show('未找到地址，请补充省、市及街道信息后重试', true)
-  } catch (error) { if (version === mapInitVersion) show(error.message || '地址查找失败', true) }
-  finally { mapAddressSearching.value = false }
-}
-async function selectMapAddress(item) {
-  mapPosition.value = { location: item.location, source: 'manual', label: `手动位置：${item.address}` }
-  locationAttempted = true
-  pendingMapLocation.value = null
-  mapAddressResults.value = []
-  mapLocationLabel.value = mapPosition.value.label
-  await initStationMap(false, true)
+async function selectMapStation(station) {
+  selectedMapStationId.value = station.id
+  mapLocationLabel.value = `${station.name} · ${station.address || '暂无地址'}`
+  const location = toLocationArray([station.longitude, station.latitude])
+  if (location) demoMapLocation.value = location
+  await initStationMap(true)
 }
 async function retryDeadLetters() { await run(async () => { const result = await api.retryDeadLetters(100); await refreshAll(); show(`已重试 ${result.count || 0} 条死信`) }) }
 async function purgeDeadLetters() { if (!window.confirm('确认清空死信队列？')) return; await run(async () => { const result = await api.purgeDeadLetters(); await refreshAll(); show(`已清空 ${result.count || 0} 条死信`) }) }
-async function getBrowserLocation(AMap) {
-  if (locationRequestInFlight) return locationRequestInFlight
-  locationRequestInFlight = requestBrowserLocation({ geolocation: navigator.geolocation, AMap, secure: window.isSecureContext })
-  try { return await locationRequestInFlight } finally { locationRequestInFlight = null }
-}
 async function refreshSimulator() {
   if (!loggedIn.value) return
   if (realtimeSocket?.readyState === WebSocket.OPEN) return
@@ -596,19 +535,20 @@ onUnmounted(() => { mapInitVersion += 1; if (mapTileTimer) window.clearTimeout(m
         <div class="hero"><div><span>新能源基础设施</span><h2>让每一次充电<br>都有迹可循</h2><p>从设备接入、状态管理到订单计费，一条完整的充电业务链路。</p></div><div class="hero-mark">ϟ</div></div>
         <div class="stats"><article><small>充电站</small><b>{{ dashboard.stationCount || 0 }}</b><em>STATIONS</em></article><article><small>充电桩</small><b>{{ dashboard.chargerCount || 0 }}</b><em>CHARGERS</em></article><article><small>充电枪</small><b>{{ dashboard.connectorCount || 0 }}</b><em>CONNECTORS</em></article><article class="green"><small>正在充电</small><b>{{ dashboard.chargingOrderCount || 0 }}</b><em>ACTIVE ORDERS</em></article><article><small>已完成订单</small><b>{{ dashboard.completedOrderCount || 0 }}</b><em>COMPLETED</em></article></div>
         <div class="simulator-strip"><div class="simulator-mark">ϟ</div><div class="simulator-copy"><small>LIVE DEVICE FLEET</small><strong>虚拟充电桩集群</strong><span>{{ simulatorStatus.enabled ? 'TCP 状态同步已启用 · 点击枪状态可进行测试操作' : '模拟桩适配器未启用' }}</span></div><div class="simulator-devices"><span v-for="device in simulatorStatus.devices" :key="device.deviceId" class="simulator-device" :class="{ online: device.connected }"><i></i><b>{{ device.deviceId }} · {{ device.connected ? 'ONLINE' : 'OFFLINE' }}</b><small v-for="connector in Object.values(device.connectors || {})" :key="connector.connectorId" class="simulator-connector-control" :class="{ charging: connector.status === 'CHARGING' }" title="点击进行测试操作" @click.stop="openSimulatorConnector(device, connector)">枪{{ connector.connectorId }} {{ statusText(connector.status) }}<template v-if="connector.status === 'CHARGING'"> · {{ Number(connector.powerKw || 0).toFixed(1) }} kW · {{ Number(connector.currentA || ((Number(connector.powerKw || 0) * 1000) / 220) || 0).toFixed(1) }} A · {{ Number(connector.energyKwh || 0).toFixed(3) }} kWh</template></small></span></div></div>
-        <div class="map-panel"><div class="map-panel-head"><div><small>LIVE LOCATION</small><h3>附近充电站</h3></div><div class="map-actions"><div class="map-refresh-row"><span>若无显示请刷新</span><button class="map-refresh" type="button" @click="refreshPage" title="刷新网页">↻ 刷新</button></div><div class="map-location-status"><span>{{ mapLocationLabel }}</span><button type="button" :disabled="mapLocating || mapAddressSearching" @click="relocateMap">{{ mapLocating ? '定位中…' : '重新定位' }}</button></div></div></div><form class="map-address-search" @submit.prevent="searchMapAddress">
-  <input v-model="mapAddress" aria-label="查找位置地址" placeholder="输入省市和街道，例如：河南省新密市青屏大街">
-  <button type="submit" :disabled="mapLocating || mapAddressSearching || !mapAddress.trim()">{{ mapAddressSearching ? '查找中…' : '查找地址' }}</button>
-  <small>自动定位不准时，可查找并选择地址</small>
-</form>
-<div v-if="mapAddressResults.length" class="map-address-results">
-  <button v-for="item in mapAddressResults" :key="item.address" type="button" @click="selectMapAddress(item)">{{ item.address }} · 使用此位置</button>
-</div>
-<div v-if="pendingMapLocation" class="map-location-warning">
-  <span>{{ pendingMapLocation.error }}。若确认自己已移动，可采用新位置。</span>
-  <button type="button" @click="usePendingMapLocation">采用新设备位置</button>
-  <button type="button" @click="pendingMapLocation = null">保留原位置</button>
-</div><div ref="mapContainer" class="station-map"><div v-if="demoMapFallback" class="demo-map"><div class="demo-map-grid"></div><div class="demo-map-water"></div><span class="demo-map-road road-one"></span><span class="demo-map-road road-two"></span><button v-for="station in demoMapMarkers" :key="station.id" class="demo-map-marker" :style="{ left: station.left, top: station.top }" type="button" @click="show(`${station.name} · ${station.address || '暂无地址'}`)"><i></i><strong>{{ station.name }}</strong><small>{{ Number(station.latitude).toFixed(4) }}, {{ Number(station.longitude).toFixed(4) }}</small></button><div class="demo-map-location"><i></i><span>{{ mapLocationLabel }}</span></div><div class="demo-map-caption">示意地图 · 配置高德 Key 后显示真实道路</div></div></div><p v-if="mapError" class="map-error">{{ mapError }} · 当前仍可使用下方站点列表</p></div>
+        <div class="map-panel">
+          <div class="map-panel-head"><div><small>STATION MAP</small><h3>站点分布</h3></div><div class="map-location-status"><span>{{ mapLocationLabel }}</span><button type="button" @click="initStationMap(true)">刷新地图</button></div></div>
+          <div class="station-map-workspace">
+          <div class="station-map-sidebar">
+          <div class="map-address-search"><input v-model="mapStationKeyword" aria-label="查询站点" placeholder="搜索站点名称或地址"><small>{{ mapStationResults.length }} 个匹配站点</small></div>
+          <div class="map-station-results">
+            <button v-for="station in mapStationResults" :key="station.id" type="button" :class="{ selected: station.id === selectedMapStationId }" :aria-pressed="station.id === selectedMapStationId" @click="selectMapStation(station)"><span class="station-result-head"><strong>{{ station.name }}</strong><span class="station-result-status" :class="{ closed: station.status === 'CLOSED' }">{{ statusText(station.status) }}</span></span><small>{{ station.address || '暂无地址' }}</small></button>
+            <p v-if="!mapStationResults.length">未找到匹配站点，请更换名称或地址关键词</p>
+          </div>
+          </div>
+          <div ref="mapContainer" class="station-map"><div v-if="demoMapFallback" class="demo-map"><div class="demo-map-grid"></div><div class="demo-map-water"></div><span class="demo-map-road road-one"></span><span class="demo-map-road road-two"></span><button v-for="station in demoMapMarkers" :key="station.id" class="demo-map-marker" :style="{ left: station.left, top: station.top }" type="button" @click="selectMapStation(station)"><i></i><strong>{{ station.name }}</strong><small>{{ station.address }}</small></button><div class="demo-map-caption">站点分布示意图</div></div></div>
+          </div>
+          <p v-if="mapError" class="map-error">{{ mapError }} · 当前仍可使用站点查询</p>
+        </div>
         <div class="panel flow"><div><b>01</b><span>创建站点</span></div><i>→</i><div><b>02</b><span>添加桩与枪</span></div><i>→</i><div><b>03</b><span>配置电价</span></div><i>→</i><div><b>04</b><span>模拟充电</span></div><i>→</i><div><b>05</b><span>自动结算</span></div></div>
       </section>
 

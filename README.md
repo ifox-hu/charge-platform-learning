@@ -625,9 +625,7 @@ docker compose -f docker-compose.server.yml logs --tail 80 backend frontend rabb
 - 页面无数据：检查六张基础表、audit_log、V2 到 V5；全新库还需手动导入 demo_seed.sql。
 - RabbitMQ unhealthy：等待旧卷恢复，查看日志和 State.Health.Status，不要删除数据卷。
 - HTTPS 拒绝连接：检查 443 映射、容器状态、证书路径和 Nginx 日志。
-- 浏览器不弹定位：局域网 HTTP IP 不是安全来源，使用 HTTPS 或 localhost。
-- Web 定位不准：普通 Web 和 Pages 均只接受浏览器报告误差在 100 米以内的新位置，不再使用高德/IP 定位兜底；失败时保留已有位置。新位置偏离上次超过 5 公里时，需要点击“采用新设备位置”才会移动地图。
-- 电脑无法精确定位：在地图上输入完整省市及街道，点击“查找地址”，核对返回地址后点击“使用此位置”。手动位置会明确标注，地图保持街区范围；浏览器报告的精度不能保证真实位置，桌面设备可能仍需手动选择。
+- Web 运营地图：按站点名称、城市或地址模糊查询，点击结果查看站点位置；后台不请求管理员设备定位。站点位置解析失败时，请补充完整省市地址。
 - 小程序加载失败：检查 env.js 的 baseUrl、8081 可达性、合法域名和 gcj02。
 - Web 加枪后数量不一致：重新进入详情；数据库枪数和模拟器物理枪数需要分别配置。
 - WebSocket 不推送：检查 /ws/status 握手、wss 和 Nginx Upgrade 转发。
