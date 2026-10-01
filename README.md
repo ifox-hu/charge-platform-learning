@@ -3,11 +3,27 @@
 一个可运行、可联调的充电运营平台作品，覆盖设备接入、实时状态、订单计费、消息可靠性和 Docker 部署。
 
 > GitHub Pages：启用 Actions 后访问 `https://ifox-hu.github.io/charge-platform-learning/`
+
+## GitHub Pages 在线演示
+
+Pages 工作流会使用 `VITE_DEMO_MODE=true` 构建前端，访问者无需启动后端即可体验登录、站点与设备查看、模拟启动/结束充电、订单记录和 RabbitMQ 消息监控。演示数据保存在浏览器 `localStorage` 中，刷新后仍会保留；它不连接 MySQL、Redis、RabbitMQ，也不产生真实订单或支付。
+
+演示登录使用任意用户名和密码 `123456`，例如 `demo_admin / 123456`。用户名包含 `admin` 时显示管理员菜单（包括消息监控），其他用户名显示运营员菜单。
+
+本地验证演示模式：
+
+```powershell
+cd frontend
+$env:VITE_DEMO_MODE = "true"
+npm run dev
+```
+
+本地真实后端开发不设置该变量即可，前端会继续请求 `/api` 并连接真实 WebSocket。Pages 部署由 `.github/workflows/pages.yml` 在推送到 `main` 后自动完成。
 > 在线 API：需要在 GitHub 仓库 Variables 中配置 `VITE_API_BASE_URL`，例如 `https://api.example.com/api`
 > 演示账号：`demo_admin / 123456`（管理员）、`demo_operator / 123456`（运营员）
 > 本账号仅用于演示环境，请勿用于生产。
 
-## 面试体验
+## 演示体验
 
 1. 登录 Web 管理端，进入“运营看板”观察三台模拟桩和充电枪状态。
 2. 在“设备管理”或订单区域选择空闲枪，启动一次模拟充电。
@@ -101,7 +117,7 @@ cd charge-platform-learning
 
 ### 2.3 新数据库
 
-空库按 V1 到 V4 顺序执行：
+空库按 V1 到 V5 顺序执行：
 
 | 版本 | 文件 | 内容 |
 |---|---|---|
@@ -109,6 +125,7 @@ cd charge-platform-learning
 | V2 | docs/db/V2__station_coordinates.sql | 站点 GCJ-02 坐标 |
 | V3 | docs/db/V3__order_test_and_archive.sql | 测试订单、归档字段 |
 | V4 | docs/db/V4__audit_log.sql | 审计表 |
+| V5 | docs/db/V5__customer_mock_payment.sql | 普通用户订单归属和模拟支付 |
 
 Docker MySQL 只在全新空数据卷第一次启动时自动执行 docs/db。演示账号和演示设备不会自动创建，本地需要时手动导入：
 
@@ -118,7 +135,7 @@ docker compose -f docker-compose.yml exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT
 
 demo_admin、demo_operator 的演示密码是 123456，只用于本地隔离环境。
 
-已有数据库不要执行 V1 或 demo_seed.sql。先备份，再检查并只执行缺少的 V2、V3、V4：
+已有数据库不要执行 V1 或 demo_seed.sql。先备份，再检查并只执行缺少的 V2、V3、V4、V5：
 
 ~~~sql
 SHOW TABLES;
@@ -388,7 +405,7 @@ erDiagram
 
 ### 7.4 数据库脚本顺序
 
-V1 建立 sys_user、station、charger、connector、price_period、charge_order；V2 增加坐标；V3 增加 test_order、archived、archived_at；V4 建立 audit_log。
+V1 建立 sys_user、station、charger、connector、price_period、charge_order；V2 增加坐标；V3 增加 test_order、archived、archived_at；V4 建立 audit_log；V5 增加普通用户订单归属和模拟支付字段。
 
 手动建库：
 
@@ -453,7 +470,7 @@ docker compose -f docker-compose.server.yml ps
 docker compose -f docker-compose.server.yml logs --tail 80 backend frontend rabbitmq
 ~~~
 
-- 页面无数据：检查六张基础表、audit_log、V2 到 V4；全新库还需手动导入 demo_seed.sql。
+- 页面无数据：检查六张基础表、audit_log、V2 到 V5；全新库还需手动导入 demo_seed.sql。
 - RabbitMQ unhealthy：等待旧卷恢复，查看日志和 State.Health.Status，不要删除数据卷。
 - HTTPS 拒绝连接：检查 443 映射、容器状态、证书路径和 Nginx 日志。
 - 浏览器不弹定位：局域网 HTTP IP 不是安全来源，使用 HTTPS 或 localhost。
@@ -470,7 +487,7 @@ docker compose -f docker-compose.server.yml logs --tail 80 backend frontend rabb
 | Web | npm run build、登录和关键交互 |
 | 小程序 | 开发者工具编译、页面切换、定位 |
 | 模拟桩 | mvn test、三个 TCP 连接、START/STOP |
-| 数据库 | 备份、按 V1 到 V4 执行、检查字段索引 |
+| 数据库 | 备份、按 V1 到 V5 执行、检查字段索引 |
 | Docker | config --quiet、ps、日志、HTTPS、完整充电链路 |
 
 ## 11. 一键初始化、自动部署与消息监控

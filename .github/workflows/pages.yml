@@ -30,6 +30,7 @@ jobs:
         working-directory: frontend
         env:
           VITE_BASE_PATH: /charge-platform-learning/
+          VITE_DEMO_MODE: true
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

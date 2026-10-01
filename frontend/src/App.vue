@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { api, authStore } from './api'
+import { api, authStore, demoMode } from './api'
 
 const menus = [
   { key: 'dashboard', icon: '⌁', label: '运营看板' },
@@ -9,6 +9,7 @@ const menus = [
   { key: 'prices', icon: '¥', label: '分时电价' },
   { key: 'orders', icon: '▤', label: '充电订单' }
   ,{ key: 'audit', icon: '◷', label: '操作审计' }
+  ,{ key: 'rabbitmq', icon: '⇄', label: '消息监控' }
 ]
 const active = ref('dashboard')
 const loggedIn = ref(Boolean(authStore.getToken()))
@@ -33,6 +34,7 @@ const connectors = ref([])
 const prices = ref([])
 const orders = ref([])
 const auditRows = ref([])
+const rabbitOverview = ref({ ready: 0, consumers: 0, deadLetters: 0, deadLetterConsumers: 0, queue: '', deadLetterQueue: '' })
 const selectedOrderIds = ref([])
 const stationPagination = reactive({ page: 1, size: 10, total: 0, totalPages: 0, name: '' })
 const orderPagination = reactive({ page: 1, size: 10, total: 0, totalPages: 0, plateNumber: '' })
@@ -91,6 +93,7 @@ async function refreshAll() {
       const auditPage = await api.auditLogs(auditPagination)
       auditRows.value = auditPage.rows
       Object.assign(auditPagination, { total: auditPage.total, totalPages: auditPage.totalPages })
+      rabbitOverview.value = await api.rabbitOverview()
     }
     if (!stationForm.name && stations.value.length) {
       chargerForm.stationId ||= stations.value[0].id
@@ -181,6 +184,8 @@ async function relocateMap() {
   await initStationMap()
   if (!mapError.value && mapLocationLabel.value === '正在重新定位') mapLocationLabel.value = '已定位到当前位置'
 }
+async function retryDeadLetters() { await run(async () => { const result = await api.retryDeadLetters(100); await refreshAll(); show(`已重试 ${result.count || 0} 条死信`) }) }
+async function purgeDeadLetters() { if (!window.confirm('确认清空死信队列？')) return; await run(async () => { const result = await api.purgeDeadLetters(); await refreshAll(); show(`已清空 ${result.count || 0} 条死信`) }) }
 function isChinaCoordinate(longitude, latitude) {
   return Number.isFinite(Number(longitude)) && Number.isFinite(Number(latitude))
     && Number(longitude) >= 73 && Number(longitude) <= 135
@@ -210,7 +215,7 @@ async function refreshSimulator() {
   try { simulatorStatus.value = await api.simulatorStatus() } catch (e) { if (e.message?.includes('登录')) logout() }
 }
 function connectRealtime() {
-  if (!loggedIn.value || !window.WebSocket) return
+  if (demoMode || !loggedIn.value || !window.WebSocket) return
   if (realtimeSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(realtimeSocket.readyState)) return
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const token = authStore.getToken()
@@ -405,14 +410,14 @@ onUnmounted(() => { window.removeEventListener('auth-expired', logout); if (simu
 <template>
   <div v-if="!loggedIn" class="login-shell">
     <div class="login-copy"><span class="login-logo">ϟ</span><p>CHARGE PLATFORM LITE</p><h1>连接城市的<br><em>每一度电</em></h1><div class="login-line"></div><small>轻量、清晰、可追溯的新能源充电运营平台</small></div>
-    <form class="login-card" @submit.prevent="login"><div><small>WELCOME BACK</small><h2>登录运营后台</h2><p>使用你的账号进入充电管理平台</p></div><label>用户名<input v-model="loginForm.username" autocomplete="username"></label><label>密码<input v-model="loginForm.password" type="password" autocomplete="current-password"></label><button class="primary" type="submit">登录平台</button></form>
+    <form class="login-card" @submit.prevent="login"><div><small>WELCOME BACK</small><h2>登录运营后台</h2><p>使用你的账号进入充电管理平台</p><small v-if="demoMode" class="demo-hint">在线演示：任意用户名 / 123456</small></div><label>用户名<input v-model="loginForm.username" autocomplete="username"></label><label>密码<input v-model="loginForm.password" type="password" autocomplete="current-password"></label><button class="primary" type="submit">登录平台</button></form>
     <div v-if="notice.text" class="notice" :class="{ error: notice.error }">{{ notice.text }}</div>
     <div v-if="loading" class="loading">正在登录…</div>
   </div>
   <div v-else class="shell">
     <aside>
       <div class="brand"><span class="bolt">ϟ</span><div><strong>ChargeLite</strong><small>充电运营平台</small></div></div>
-      <nav><button v-for="item in menus" :key="item.key" :class="{ active: active === item.key }" @click="active = item.key"><span>{{ item.icon }}</span>{{ item.label }}</button></nav>
+      <nav><button v-for="item in menus" v-show="item.key !== 'rabbitmq' || isAdmin" :key="item.key" :class="{ active: active === item.key }" @click="active = item.key"><span>{{ item.icon }}</span>{{ item.label }}</button></nav>
       <div class="aside-foot"><span class="dot"></span>后端服务连接正常<small class="dependency-status">Redis：{{ dependencyText(dependencyHealth.redis) }} · RabbitMQ：{{ dependencyText(dependencyHealth.rabbitmq) }}</small></div>
     </aside>
     <main>
@@ -448,6 +453,19 @@ onUnmounted(() => { window.removeEventListener('auth-expired', logout); if (simu
         <div class="audit-toolbar"><span>审计日志保留策略</span><button class="ghost" @click="cleanupAuditLogs(7)">清理7天前</button><button class="ghost" @click="cleanupAuditLogs(30)">清理30天前</button></div>
         <div class="panel table-panel"><div class="panel-title"><h3>操作审计</h3><span>{{ auditPagination.total }} 条记录</span></div><div class="search-bar"><input v-model="auditPagination.username" placeholder="按用户名搜索" @keyup.enter="auditPagination.page=1;refreshAll()"><button class="ghost" @click="auditPagination.page=1;refreshAll()">查询</button></div><table><thead><tr><th>时间</th><th>用户 / 角色</th><th>操作</th><th>接口</th><th>结果</th><th>来源 IP</th></tr></thead><tbody><tr v-for="log in auditRows" :key="log.id"><td>{{ log.createdAt ? new Date(log.createdAt).toLocaleString() : '-' }}</td><td><strong>{{ log.username }}</strong><small>{{ log.role }}</small></td><td>{{ log.method }}</td><td>{{ log.path }}</td><td><span class="badge" :class="log.statusCode >= 400 ? 'fault' : 'completed'">{{ log.statusCode }}</span></td><td>{{ log.clientIp || '-' }}</td></tr></tbody></table><div class="pagination"><button :disabled="auditPagination.page<=1" @click="changeAuditPage(-1)">上一页</button><span>{{ auditPagination.page }} / {{ auditPagination.totalPages || 1 }}</span><button :disabled="auditPagination.page>=auditPagination.totalPages" @click="changeAuditPage(1)">下一页</button></div></div>
       </section>
+       <section v-else-if="active === 'rabbitmq'" class="rabbitmq-page">
+         <div class="stats rabbitmq-stats">
+           <article><small>待处理消息</small><b>{{ rabbitOverview.ready || 0 }}</b><em>{{ rabbitOverview.queue || 'ORDER QUEUE' }}</em></article>
+           <article><small>消费者</small><b>{{ rabbitOverview.consumers || 0 }}</b><em>CONSUMERS</em></article>
+           <article class="green"><small>死信消息</small><b>{{ rabbitOverview.deadLetters || 0 }}</b><em>{{ rabbitOverview.deadLetterQueue || 'DLQ' }}</em></article>
+           <article><small>死信消费者</small><b>{{ rabbitOverview.deadLetterConsumers || 0 }}</b><em>DLQ CONSUMERS</em></article>
+         </div>
+         <div class="panel table-panel rabbitmq-panel">
+           <div class="panel-title"><div><h3>RabbitMQ 消息队列</h3><p class="rabbitmq-subtitle">订单完成事件的投递、消费与异常处理</p></div><span>{{ rabbitOverview.exchange || '-' }} · {{ rabbitOverview.routingKey || '-' }}</span></div>
+           <div class="rabbitmq-flow"><div><i class="flow-dot main"></i><strong>主队列</strong><small>订单完成事件正常消费</small></div><span>→</span><div><i class="flow-dot dead"></i><strong>死信队列</strong><small>失败重试后集中处理</small></div></div>
+           <div class="rabbitmq-actions"><p class="tip">消费失败超过重试次数后进入死信队列，可批量重试或清空。</p><div class="audit-toolbar"><button class="primary" @click="retryDeadLetters">重试死信（最多100条）</button><button class="ghost" @click="purgeDeadLetters">清空死信队列</button><button class="ghost" @click="refreshAll">刷新状态</button></div></div>
+         </div>
+       </section>
       <section v-else class="grid">
         <div class="panel form-panel"><h3>模拟启动充电</h3><label>充电站<select v-model="orderForm.stationId"><option v-for="s in stations" :value="s.id">{{ s.name }}</option></select></label><label>充电枪<select v-model="orderForm.connectorId"><option v-for="c in connectors" :value="c.id" :disabled="c.status !== 'IDLE'">{{ c.name }} · {{ statusText(c.status) }}</option></select></label><label>车牌号<div class="plate-fields"><select v-model="plateInput.region"><option v-for="region in regionOptions" :value="region">{{ region }}</option></select><select v-model="plateInput.letter"><option v-for="letter in letterOptions" :value="letter">{{ letter }}</option></select><input v-model="plateInput.digits" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="5或6位数字"></div></label><button class="primary" @click="startOrder">启动充电</button><p class="tip">请选择地区和大写字母，再输入5或6位数字。</p></div>
         <div class="panel table-panel"><div class="panel-title"><h3>订单记录</h3><div class="panel-title-actions"><span>{{ orderPagination.total }} 笔订单</span><button v-if="isAdmin" class="ghost" @click="clearCompletedTestOrders">清理选中</button><button class="ghost" @click="exportOrders">导出报表</button></div></div><div class="search-bar"><input v-model="orderPagination.plateNumber" placeholder="按车牌号搜索" @keyup.enter="orderPagination.page=1;refreshAll()"><button class="ghost" @click="orderPagination.page=1;refreshAll()">查询</button></div><table><thead><tr><th v-if="isAdmin"><input type="checkbox" :checked="orders.some(o => o.status === 'COMPLETED') && selectedOrderIds.length === orders.filter(o => o.status === 'COMPLETED').length" @change="toggleAllCompletedOrders"></th><th>订单号 / 车辆</th><th>状态</th><th>电量</th><th>费用</th><th>开始时间</th><th></th></tr></thead><tbody><tr v-for="o in orders" :key="o.id"><td v-if="isAdmin"><input v-if="o.status === 'COMPLETED'" type="checkbox" :checked="selectedOrderIds.includes(o.id)" @change="toggleOrderSelection(o)"><span v-else class="order-selection-placeholder"></span></td><td><strong>{{ o.orderNo }}</strong><small>{{ o.plateNumber }}</small></td><td><span class="badge" :class="o.status.toLowerCase()">{{ statusText(o.status) }}</span></td><td>{{ o.energyKwh || 0 }} kWh</td><td>{{ money(o.totalAmount) }}</td><td>{{ new Date(o.startTime).toLocaleString() }}</td><td><button class="edit-link" @click="openOrderDetail(o)">查看</button><button v-if="o.status === 'CHARGING'" class="stop" @click="stopOrder(o)">结束充电</button></td></tr></tbody></table><div class="pagination"><button :disabled="orderPagination.page<=1" @click="changeOrderPage(-1)">上一页</button><span>{{ orderPagination.page }} / {{ orderPagination.totalPages || 1 }}</span><button :disabled="orderPagination.page>=orderPagination.totalPages" @click="changeOrderPage(1)">下一页</button></div></div>

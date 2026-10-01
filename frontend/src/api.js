@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { mockApi } from './mockApi'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
 const http = axios.create({ baseURL: apiBaseUrl, timeout: 10000 })
@@ -27,7 +28,7 @@ http.interceptors.response.use(
   }
 )
 
-export const api = {
+const realApi = {
   login: data => http.post('/auth/login', data),
   me: () => http.get('/auth/me'),
   dashboard: () => http.get('/dashboard'),
@@ -66,3 +67,7 @@ export const api = {
   ,retryDeadLetters: limit => http.post('/rabbitmq/dead-letters/retry', null, { params: { limit } })
   ,purgeDeadLetters: () => http.delete('/rabbitmq/dead-letters')
 }
+
+// GitHub Pages builds use the browser-only demo API; local development keeps the real backend by default.
+export const demoMode = import.meta.env.VITE_DEMO_MODE === 'true'
+export const api = demoMode ? mockApi : realApi
