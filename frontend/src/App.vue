@@ -34,6 +34,7 @@ const demoMapMarkers = computed(() => stations.value.map((station, index) => ({
 let mapInstance
 let mapScriptPromise
 let mapElement
+let mapTileTimer
 const stations = ref([])
 const stationRows = ref([])
 const chargers = ref([])
@@ -201,6 +202,20 @@ async function initStationMap() {
     mapError.value = unresolvedStations
       ? `${unresolvedStations} 个站点地址暂未解析出有效坐标，请补充省市信息`
       : ''
+    if (mapTileTimer) window.clearTimeout(mapTileTimer)
+    mapTileTimer = window.setTimeout(() => {
+      if (!mapContainer.value || demoMapFallback.value) return
+      const tile = mapContainer.value.querySelector('.amap-layer img')
+      const hasLoadedTile = tile && tile.naturalWidth > 0
+      if (!hasLoadedTile) {
+        mapInstance?.destroy()
+        mapInstance = null
+        mapElement = null
+        demoMapFallback.value = true
+        mapError.value = '真实地图瓦片未加载，已切换演示地图'
+        mapLocationLabel.value = '使用演示默认位置'
+      }
+    }, 2500)
   } catch (error) {
     if (demoMode) {
       demoMapFallback.value = true
