@@ -155,7 +155,7 @@ async function initStationMap() {
       mapInstance = null
     }
     if (!mapInstance) {
-      mapInstance = new AMap.Map(mapContainer.value, { zoom: 12, center, mapStyle: 'amap://styles/whitesmoke' })
+      mapInstance = new AMap.Map(mapContainer.value, { zoom: 12, center })
       mapElement = mapContainer.value
     }
     else mapInstance.setCenter(center)
@@ -203,7 +203,11 @@ async function initStationMap() {
       demoMapFallback.value = true
       mapError.value = ''
       mapLocationLabel.value = '演示默认位置'
-    } else mapError.value = error.message || '地图加载失败'
+    } else {
+      demoMapFallback.value = true
+      mapError.value = `真实地图暂不可用：${error.message || '地图加载失败'}`
+      mapLocationLabel.value = '使用演示默认位置'
+    }
   }
 }
 function refreshPage() { window.location.reload() }

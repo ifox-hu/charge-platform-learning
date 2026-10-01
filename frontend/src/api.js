@@ -24,7 +24,9 @@ http.interceptors.response.use(
       authStore.clear()
       window.dispatchEvent(new Event('auth-expired'))
     }
-    return Promise.reject(new Error(error.response?.data?.message || '请求失败，请确认后端已启动'))
+    const message = error.response?.data?.message
+      || (error.response ? `请求失败（${error.response.status}）：${error.config?.url || ''}` : `无法连接后端：${error.config?.url || '请求'}`)
+    return Promise.reject(new Error(message))
   }
 )
 
