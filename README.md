@@ -20,12 +20,12 @@ npm run dev
 
 本地真实后端开发不设置该变量即可，前端会继续请求 `/api` 并连接真实 WebSocket。Pages 部署由 `.github/workflows/pages.yml` 在推送到 `main` 后自动完成。
 
-如需在在线演示中显示真实高德地图，在仓库 `Settings -> Secrets and variables -> Actions -> Variables` 新增 `VITE_AMAP_KEY` 和 `VITE_AMAP_SECURITY_CODE`。高德控制台的 Web 端 Key 要把 `ifox-hu.github.io` 加入安全域名白名单。未配置或加载失败时会自动显示虚拟演示地图。
 
-本地 Web 地图白名单不要填写完整 URL。高德控制台的“域名白名单”分别填写 `localhost`、`127.0.0.1`；如果用局域网 IP 访问，再填写电脑局域网 IP，例如 `192.168.1.4`。不要填写 `http://localhost:5174/`、端口、路径或末尾斜杠。GitHub Pages 仍填写 `ifox-hu.github.io`，小程序地图使用微信开发者工具的合法域名校验配置，与 Web Key 白名单分开。
-> 在线 API：需要在 GitHub 仓库 Variables 中配置 `VITE_API_BASE_URL`，例如 `https://api.example.com/api`
-> 演示账号：`demo_admin / 123456`（管理员）、`demo_operator / 123456`（运营员）
-> 本账号仅用于演示环境，请勿用于生产。
+## 当前推荐运行方式
+
+完整本地联调使用下面的组合：虚拟机 Docker 运行 MySQL、Redis、RabbitMQ 和三台模拟桩；Windows IDEA 运行后端；Windows 终端运行前端；微信开发者工具运行小程序。首次启动和日常启动都按“环境准备与首次启动”执行。
+
+不想安装本地依赖时，直接打开 [GitHub Pages 快速演示](https://ifox-hu.github.io/charge-platform-learning/)。它使用浏览器演示数据，不连接本地后端、数据库、Redis、RabbitMQ 或模拟桩。
 
 ## 演示体验
 
@@ -41,7 +41,7 @@ npm run dev
 - Spring Boot 事务、行锁和提交后事件保证订单结算一致性。
 - WebSocket 推送设备状态，Redis 缓存运营看板，RabbitMQ 处理订单完成事件。
 - JWT + ADMIN/OPERATOR 权限、操作审计、订单导出和测试订单清理。
-- Docker Compose 一键初始化，GitHub Actions 自动测试、构建和 SSH 部署。
+- Docker Compose 可选部署，GitHub Actions 自动测试、构建和 SSH 部署。
 
 ## 技术栈
 
@@ -63,9 +63,7 @@ npm run dev
 8. [Docker 部署](#8-docker-部署)
 9. [故障排查](#9-故障排查)
 10. [验证清单](#10-验证清单)
-11. [一键初始化、自动部署与消息监控](#11-一键初始化自动部署与消息监控)
-
-面试演示脚本：[`docs/interview-demo.md`](docs/interview-demo.md)
+11. [自动部署与消息监控](#11-自动部署与消息监控)
 
 ## 1. 项目概览
 
@@ -106,57 +104,256 @@ npm run dev
 |---|---|---|
 | JDK 17 | 后端、模拟桩 | java -version |
 | Maven 3.9+ | 构建测试 | mvn -version |
-| Node.js/npm | Web 构建 | node -v、npm -v |
-| Docker Compose | 容器运行 | docker compose version |
+| Node.js 20 LTS / npm 10+ | Web 构建 | `node -v`、`npm -v` |
+| Docker Engine / Compose v2 | 容器运行 | `docker --version`、`docker compose version` |
 | 微信开发者工具 | 小程序调试 | 选择 miniapp/ |
 
-### 2.2 获取代码
+### 2.2 准备 Windows 项目
 
-~~~bash
+```powershell
 git clone https://github.com/ifox-hu/charge-platform-learning.git
-cd charge-platform-learning
-~~~
+cd E:\充电桩\charge-platform-learning
+```
 
-复制 .env.example 为 .env，填写数据库、RabbitMQ 和 JWT_SECRET。密码、证书、备份和日志不要上传 GitHub。
+Windows 需要安装 JDK 17、Maven 3.9+、Node.js 20 LTS 和 npm 10+。虚拟机需要 Docker Engine、Docker Compose v2，以及 `centos7-jdk17:latest` 镜像。
 
-### 2.3 新数据库
+Docker Engine 安装：
 
-空库按 V1 到 V5 顺序执行：
+```bash
+curl -fsSL https://get.docker.com | bash
+systemctl enable --now docker
+```
 
-| 版本 | 文件 | 内容 |
-|---|---|---|
-| V1 | docs/db/V1__baseline_schema.sql | 六张基础表 |
-| V2 | docs/db/V2__station_coordinates.sql | 站点 GCJ-02 坐标 |
-| V3 | docs/db/V3__order_test_and_archive.sql | 测试订单、归档字段 |
-| V4 | docs/db/V4__audit_log.sql | 审计表 |
-| V5 | docs/db/V5__customer_mock_payment.sql | 普通用户订单归属和模拟支付 |
+Docker Compose v2 安装（Docker 新版本通常已自带；缺少时执行）：
 
-Docker MySQL 只在全新空数据卷第一次启动时自动执行 docs/db。演示账号和演示设备不会自动创建，本地需要时手动导入：
+```bash
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+docker compose version
+```
 
-~~~bash
-docker compose -f docker-compose.yml exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot "$MYSQL_DATABASE"' < docs/demo_seed.sql
-~~~
+`centos7-jdk17:latest` 是 `docker-compose.server.yml` 中三个模拟桩容器和服务器后端容器使用的 Java 运行时镜像。
 
-demo_admin、demo_operator 的演示密码是 123456，只用于本地隔离环境。
+`centos7-jdk17:latest` 下载和验证：
 
-已有数据库不要执行 V1 或 demo_seed.sql。先备份，再检查并只执行缺少的 V2、V3、V4、V5：
+```bash
+docker pull centos7-jdk17:latest
+docker image inspect centos7-jdk17:latest >/dev/null && echo '镜像已存在'
+docker run --rm centos7-jdk17:latest java -version
+```
 
-~~~sql
-SHOW TABLES;
-SHOW COLUMNS FROM station LIKE 'latitude';
-SHOW COLUMNS FROM charge_order LIKE 'test_order';
-SHOW TABLES LIKE 'audit_log';
-~~~
+如果镜像仓库无法直接拉取，可以从已有该镜像的 Docker 主机导出后导入：
 
-### 2.4 首次启动
+```bash
+# 有镜像的 Docker 主机
+docker save centos7-jdk17:latest -o centos7-jdk17.tar
+# 虚拟机
+docker load -i centos7-jdk17.tar
+```
 
-~~~bash
+### 2.3 第一次编译并上传模拟桩
+
+模拟桩容器只需要一个 JAR。Windows 编译：
+
+```powershell
+cd E:\充电桩\charge-platform-learning\simulator
+mvn package
+```
+
+通过你当前使用的虚拟机文件拖拽功能，把下面这些内容放到虚拟机同一个项目目录，例如 `/root/charge-platform-learning/`：
+
+```text
+docker-compose.server.yml
+.env
+docs/db/
+docs/demo_seed.sql
+simulator/target/charge-platform-simulator-0.1.0-SNAPSHOT.jar
+```
+
+虚拟机目录结构必须是：
+
+```text
+/root/charge-platform-learning/
+├── .env
+├── docker-compose.server.yml
+├── docs/
+│   ├── db/
+│   └── demo_seed.sql
+└── simulator/target/charge-platform-simulator-0.1.0-SNAPSHOT.jar
+```
+
+`.env` 至少填写：
+
+```dotenv
+MYSQL_ROOT_PASSWORD=修改为数据库 root 密码
+MYSQL_DATABASE=charge_platform
+MYSQL_USER=charge
+MYSQL_PASSWORD=修改为业务数据库密码
+RABBITMQ_USERNAME=guest
+RABBITMQ_PASSWORD=guest
+JWT_SECRET=至少32位随机字符串
+SIMULATOR_TIME_SCALE=1
+```
+
+密码、密钥和备份文件不要提交到 GitHub。
+
+### 2.4 首次创建虚拟机 Docker 的 6 个容器
+
+在虚拟机中执行。这里明确只启动基础设施和模拟桩，不启动 Compose 里的后端和前端：
+
+```bash
+cd /root/charge-platform-learning
+docker compose -f docker-compose.server.yml config --quiet
+docker compose -f docker-compose.server.yml up -d \
+  mysql redis rabbitmq simulator-001 simulator-002 simulator-003
+docker compose -f docker-compose.server.yml ps
+```
+
+端口映射为：
+
+```text
+3306  MySQL
+6379  Redis
+5672  RabbitMQ
+9100  SIM-PILE-001
+9101  SIM-PILE-002
+9102  SIM-PILE-003
+```
+
+MySQL 的全新数据卷第一次启动时会自动执行 `docs/db/V1__...` 到 `V5__...`。容器健康后，导入演示账号、演示站点和演示设备：
+
+```bash
+until docker compose -f docker-compose.server.yml exec -T mysql \
+  sh -c 'mysqladmin ping -h localhost -uroot -p"$MYSQL_ROOT_PASSWORD" --silent' \
+  >/dev/null 2>&1; do sleep 2; done
+
+docker compose -f docker-compose.server.yml exec -T mysql \
+  sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot "$MYSQL_DATABASE"' \
+  < docs/demo_seed.sql
+```
+
+演示账号：`demo_admin / 123456`、`demo_operator / 123456`。
+
+如果数据库卷已经存在，不要重复执行 V1 或重复导入种子；先执行 `docker compose ... ps` 和数据库检查。
+
+### 2.5 IDEA 启动后端
+
+虚拟机 IP 以实际环境为准。本文示例使用 `192.168.6.100`。在 IDEA 的 Spring Boot Run Configuration 中设置：
+
+```text
+DB_HOST=192.168.6.100
+DB_PORT=3306
+DB_NAME=charge_platform
+DB_USERNAME=charge
+DB_PASSWORD=与虚拟机 .env 相同
+REDIS_HOST=192.168.6.100
+REDIS_PORT=6379
+RABBITMQ_HOST=192.168.6.100
+RABBITMQ_PORT=5672
+RABBITMQ_USERNAME=guest
+RABBITMQ_PASSWORD=与虚拟机 .env 相同
+JWT_SECRET=与虚拟机 .env 相同
+SIMULATOR_ENABLED=true
+SIMULATOR_SYNC_DATABASE=true
+SIMULATOR_DEVICES=SIM-PILE-001@192.168.6.100:9100,SIM-PILE-002@192.168.6.100:9101,SIM-PILE-003@192.168.6.100:9102
+```
+
+启动后端，端口为 `8081`，验证：`http://localhost:8081/api/health`。
+
+不使用 IDEA 时，也可以在 Windows PowerShell 中启动后端。先在同一个终端设置环境变量，再执行：
+
+```powershell
+$env:DB_HOST = '192.168.6.100'
+$env:DB_PORT = '3306'
+$env:DB_NAME = 'charge_platform'
+$env:DB_USERNAME = 'charge'
+$env:DB_PASSWORD = '与虚拟机 .env 相同'
+$env:REDIS_HOST = '192.168.6.100'
+$env:REDIS_PORT = '6379'
+$env:RABBITMQ_HOST = '192.168.6.100'
+$env:RABBITMQ_PORT = '5672'
+$env:RABBITMQ_USERNAME = 'guest'
+$env:RABBITMQ_PASSWORD = '与虚拟机 .env 相同'
+$env:JWT_SECRET = '与虚拟机 .env 相同'
+$env:SIMULATOR_ENABLED = 'true'
+$env:SIMULATOR_SYNC_DATABASE = 'true'
+$env:SIMULATOR_DEVICES = 'SIM-PILE-001@192.168.6.100:9100,SIM-PILE-002@192.168.6.100:9101,SIM-PILE-003@192.168.6.100:9102'
+
+cd E:\充电桩\charge-platform-learning\backend
+mvn spring-boot:run
+```
+
+IDEA 和终端二选一，不要同时启动两个后端实例。
+
+### 2.6 启动 Web 和微信小程序
+
+Windows 终端启动 Web：
+
+```powershell
+cd E:\充电桩\charge-platform-learning\frontend
+npm ci
+npm run dev -- --host 0.0.0.0
+```
+
+访问 `http://localhost:5174`。Vite 会把 `/api` 和 `/ws` 代理到 IDEA 的 `8081`。
+
+微信开发者工具导入 `E:\充电桩\charge-platform-learning\miniapp`。开发环境 `miniapp/config/env.js` 保持：
+
+```javascript
+baseUrl: 'http://127.0.0.1:8081/api'
+```
+
+开发者工具中勾选“不校验合法域名、TLS 版本以及 HTTPS 证书”。真机调试时不能使用 `127.0.0.1`，需要改成 Windows 局域网 IP，并使用 HTTPS 合法域名配置。
+
+### 2.7 日常启动和停止
+
+虚拟机中日常启动 6 个容器：
+
+```bash
+cd /root/charge-platform-learning
+docker compose -f docker-compose.server.yml start mysql redis rabbitmq simulator-001 simulator-002 simulator-003
+```
+
+首次创建或容器被删除时使用上一节的 `up -d`。停止但保留容器和数据：
+
+```bash
+docker compose -f docker-compose.server.yml stop mysql redis rabbitmq simulator-001 simulator-002 simulator-003
+```
+
+查看日志：
+
+```bash
+docker compose -f docker-compose.server.yml logs --tail=100 mysql redis rabbitmq simulator-001 simulator-002 simulator-003
+```
+
+不要使用 `down -v`，否则会删除数据库数据卷。
+
+### 2.8 另一种方式：完整 Compose 一键启动
+
+如果不想单独启动后端和 Windows 前端，可以在一台 Docker 主机上准备完整项目目录、`.env` 和所需基础镜像，然后启动根目录的 `docker-compose.yml`。它会同时运行 MySQL、Redis、RabbitMQ、三台模拟桩、后端和 Nginx 前端：
+
+```bash
+cd /root/charge-platform-learning
 docker compose -f docker-compose.yml config --quiet
 docker compose -f docker-compose.yml up -d --build
 docker compose -f docker-compose.yml ps
-~~~
+```
 
-访问 http://localhost:5173；后端健康检查为 http://localhost:8081/api/health。局域网 IP 的浏览器定位需要 HTTPS。
+首次空数据库导入演示数据：
+
+```bash
+docker compose -f docker-compose.yml exec -T mysql \
+  sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot "$MYSQL_DATABASE"' \
+  < docs/demo_seed.sql
+```
+
+这种方式访问 `http://Docker主机IP:5173`，后端为 `http://Docker主机IP:8081`；此时不需要 IDEA、Windows 前端终端或单独配置 `SIMULATOR_DEVICES`。完整 Compose 使用 `backend/Dockerfile`、`frontend/Dockerfile` 和 `simulator/Dockerfile` 构建镜像，不依赖 `centos7-jdk17:latest`。
+
+### 2.9 数据库初始化规则
+
+全新数据卷启动时会按 `V1` 到 `V5` 自动执行 `docs/db/` 中的建表脚本；`docs/demo_seed.sql` 只负责演示账号、站点、设备和电价数据。已有数据卷不要重复执行迁移或种子脚本，先备份并检查缺少的版本。
 
 ## 3. 项目结构与架构
 
@@ -230,72 +427,21 @@ JWT 过滤器解析令牌，SecurityConfig 负责 ADMIN/OPERATOR 权限。订单
 
 ## 4. 本地开发
 
-### 4.1 IDEA 环境变量
+本项目当前的本地开发启动方式已经集中在第 2 节：虚拟机 Docker 提供 6 个基础容器，IDEA 提供后端，PowerShell 提供 Web，微信开发者工具提供小程序。后端默认端口为 `8081`，Web 默认端口为 `5174`，小程序请求 `http://127.0.0.1:8081/api`。
 
-~~~text
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_NAME=charge_platform
-DB_USERNAME=本地数据库用户
-DB_PASSWORD=本地数据库密码
-JWT_SECRET=至少32字符的随机字符串
-REDIS_HOST=127.0.0.1
-RABBITMQ_HOST=127.0.0.1
-SIMULATOR_ENABLED=true
-SIMULATOR_SYNC_DATABASE=true
-SIMULATOR_DEVICES=SIM-PILE-001@127.0.0.1:9100,SIM-PILE-002@127.0.0.1:9101,SIM-PILE-003@127.0.0.1:9102
-~~~
-
-不要把真实密码写进 application.yml。PowerShell 临时变量格式是 $env:变量名 = '值'。
-
-### 4.2 后端
-
-~~~powershell
-cd E:\充电桩\charge-platform-learning\backend
-mvn test
-mvn spring-boot:run
-~~~
-
-使用仓库内缓存：mvn "-Dmaven.repo.local=.m2-repo" test。后端端口为 8081。
-
-### 4.3 Web
-
-~~~powershell
-cd E:\充电桩\charge-platform-learning\frontend
-npm ci
-npm run dev -- --host 0.0.0.0
-~~~
-
-访问 http://localhost:5174。Vite 把 /api 和 /ws 代理到 8081；发布执行 npm run build。
-
-Web 端登录 ADMIN 或 OPERATOR 后可打开“用户账号”：按用户名、昵称和角色筛选普通用户/运营员/管理员。ADMIN 可以启用或禁用普通用户、重置密码；OPERATOR 只读查看。管理员账号在页面中受保护，普通用户只允许通过微信小程序访问自己的订单。
-
-### 4.4 小程序
-
-微信开发者工具选择 miniapp/，修改 miniapp/config/env.js 的 baseUrl。手机中的 localhost 指手机本身；正式真机需要 HTTPS 合法域名。地图坐标使用 gcj02。小程序约每 5 秒刷新枪状态，Web 增加数据库枪后，模拟器物理枪数仍需手动调整。
+模拟桩端口固定为 `9100`、`9101`、`9102`，默认枪数分别为 2、2、4。模拟桩支持 `HELLO`、`STATUS`、`START`、`STOP` 和 `PING`，状态可在 Web 的运营看板和 `GET /api/simulator/status` 查看。
 
 ## 5. 模拟桩联调
 
-| 设备 | 端口 | 默认枪数 |
-|---|---:|---:|
-| SIM-PILE-001 | 9100 | 2 |
-| SIM-PILE-002 | 9101 | 2 |
-| SIM-PILE-003 | 9102 | 4 |
+启动、停止和日志命令见 [2.7 日常启动和停止](#27-日常启动和停止)。Windows 本机验证虚拟机端口：
 
-模拟器使用逐行 JSON TCP 协议，支持 HELLO、STATUS、START、STOP、PING。time-scale=1 是真实速度。
+```powershell
+Test-NetConnection 192.168.6.100 -Port 9100
+Test-NetConnection 192.168.6.100 -Port 9101
+Test-NetConnection 192.168.6.100 -Port 9102
+```
 
-~~~powershell
-cd E:\充电桩\charge-platform-learning\simulator
-mvn package
-java -Dsimulator.port=9100 -Dsimulator.device-id=SIM-PILE-001 -Dsimulator.connectors=2 -Dsimulator.time-scale=1 -jar target\charge-platform-simulator-0.1.0-SNAPSHOT.jar
-java -Dsimulator.port=9101 -Dsimulator.device-id=SIM-PILE-002 -Dsimulator.connectors=2 -Dsimulator.time-scale=1 -jar target\charge-platform-simulator-0.1.0-SNAPSHOT.jar
-java -Dsimulator.port=9102 -Dsimulator.device-id=SIM-PILE-003 -Dsimulator.connectors=4 -Dsimulator.time-scale=1 -jar target\charge-platform-simulator-0.1.0-SNAPSHOT.jar
-Get-NetTCPConnection -LocalPort 9100,9101,9102 -State Listen
-~~~
-
-联调步骤：确认三个端口监听；启动后端并检查 GET /api/simulator/status；确认设备和枪编码映射；启动订单；查询 GET /api/orders/{id}/live；停止订单并核对 COMPLETED 和最终金额。
-
-Web 新增第 5 把枪只改了数据库，不能自动增加模拟器物理枪。必须增加 simulator.connectors 并重启对应模拟桩。
+三个端口可达且后端环境变量中的 `SIMULATOR_DEVICES` 使用同一个虚拟机 IP 后，才能完成启动订单、实时状态、停止结算和 WebSocket 联调。
 
 ## 6. 接口和实时通信
 
@@ -495,19 +641,3 @@ docker compose -f docker-compose.server.yml logs --tail 80 backend frontend rabb
 | 模拟桩 | mvn test、三个 TCP 连接、START/STOP |
 | 数据库 | 备份、按 V1 到 V5 执行、检查字段索引 |
 | Docker | config --quiet、ps、日志、HTTPS、完整充电链路 |
-
-## 11. 一键初始化、自动部署与消息监控
-
-### 11.1 Docker Compose 一键初始化
-
-PowerShell 执行 `.\scripts\init-compose.ps1`，Linux/macOS 执行 `bash scripts/init-compose.sh`。脚本会在缺少 `.env` 时复制 `.env.example`，校验 Compose 配置，构建并启动全部服务，然后显示容器状态。仅在全新本地数据卷需要演示数据时追加 `--Seed`（PowerShell）或 `--seed`（Linux）；已有数据库不要重复导入 `docs/demo_seed.sql`。
-
-### 11.2 CI/CD
-
-`.github/workflows/ci.yml` 在 push 和 Pull Request 上运行后端 `mvn test`、前端 `npm ci && npm run build` 以及 Compose 配置校验。`.github/workflows/deploy.yml` 在手工触发或推送 `v*` 标签时构建两个 JAR 和前端静态文件，并通过 SSH/rsync 上传服务器，调用 `scripts/deploy-server.sh` 重建应用容器。
-
-生产仓库需要配置 GitHub Environment `production` 的 `DEPLOY_HOST`、`DEPLOY_USER`、`DEPLOY_PATH` 和 `DEPLOY_SSH_KEY` secrets。服务器提前准备 `.env`、证书、`docker-compose.server.yml` 依赖的基础镜像和数据卷；部署脚本不会删除数据卷。
-
-### 11.3 RabbitMQ 监控与死信处理
-
-管理员登录 Web 后打开“消息监控”，可以查看订单完成队列的待处理数量、消费者数量、死信数量和死信消费者数量。点击“重试死信”会把最多 100 条消息重新发送到订单交换机，点击“清空死信队列”会永久删除当前死信，操作前应先查看 RabbitMQ 管理台 `http://localhost:15672` 并确认消息内容。对应 API 为 `GET /api/rabbitmq/overview`、`POST /api/rabbitmq/dead-letters/retry?limit=100` 和 `DELETE /api/rabbitmq/dead-letters`，均要求 ADMIN 角色。
