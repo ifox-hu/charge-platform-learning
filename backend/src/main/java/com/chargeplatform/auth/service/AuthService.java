@@ -29,16 +29,20 @@ public class AuthService {
     }
 
     public AuthDtos.UserPage pageUsers(int page, int size, String keyword, String role) {
-        Page<SysUser> result = new Page<>(Math.max(page, 1), Math.min(Math.max(size, 1), 100));
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.min(Math.max(size, 1), 100);
         String query = keyword == null ? "" : keyword.trim();
-        users.selectPage(result, new LambdaQueryWrapper<SysUser>()
-                .and(!query.isEmpty(), wrapper -> wrapper.like(SysUser::getUsername, query).or().like(SysUser::getDisplayName, query))
-                .eq(role != null && !role.isBlank(), SysUser::getRole, role.trim())
-                .orderByDesc(SysUser::getId));
-        List<AuthDtos.UserAdminView> rows = result.getRecords().stream()
+        List<SysUser> filtered = users.selectAllForAdmin().stream()
+                .filter(user -> query.isEmpty() || user.getUsername().contains(query) || user.getDisplayName().contains(query))
+                .filter(user -> role == null || role.isBlank() || user.getRole().equals(role.trim()))
+                .toList();
+        long total = filtered.size();
+        int from = Math.min((safePage - 1) * safeSize, filtered.size());
+        int to = Math.min(from + safeSize, filtered.size());
+        List<AuthDtos.UserAdminView> rows = filtered.subList(from, to).stream()
                 .map(user -> new AuthDtos.UserAdminView(user.getId(), user.getUsername(), user.getDisplayName(), user.getRole(), user.isEnabled()))
                 .collect(Collectors.toList());
-        return new AuthDtos.UserPage(rows, result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
+        return new AuthDtos.UserPage(rows, total, safePage, safeSize, Math.max(1, (total + safeSize - 1) / safeSize));
     }
 
     public void setEnabled(Long id, boolean enabled, String operator) {
