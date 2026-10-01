@@ -309,7 +309,8 @@ function locationCandidate(result) {
 function acceptLocation(candidate, allowLocationJump) {
   if (!candidate) return null
   // Do not turn a kilometer-level IP estimate into the user's current marker.
-  if (candidate.accuracy == null || candidate.accuracy > 500) return null
+  const maxAccuracy = demoMode ? 100 : 500
+  if (candidate.accuracy == null || candidate.accuracy > maxAccuracy) return null
   if (!allowLocationJump && lastTrustedLocation && distanceKm(lastTrustedLocation, candidate.location) > 50) return null
   lastTrustedLocation = candidate.location
   return candidate.location
@@ -360,14 +361,20 @@ async function getBrowserLocation(allowLocationJump = false) {
         return location
       }
     }
-    const amapLocation = acceptLocation(await getAmapLocation(), allowLocationJump)
-    if (amapLocation) {
-      mapLocationLabel.value = '已通过高德定位'
-      return amapLocation
+    // AMap's desktop fallback can be network/IP based and may resolve to a
+    // different city. Pages demo mode only uses browser GPS/Wi-Fi results.
+    if (!demoMode) {
+      const amapLocation = acceptLocation(await getAmapLocation(), allowLocationJump)
+      if (amapLocation) {
+        mapLocationLabel.value = '已通过高德定位'
+        return amapLocation
+      }
     }
     mapLocationLabel.value = lastTrustedLocation
       ? '定位精度不足，保留上次位置'
-      : navigator.geolocation ? '定位失败，使用默认位置' : '浏览器不支持定位'
+      : navigator.geolocation
+        ? demoMode ? '未获得可信 GPS，使用演示默认位置' : '定位失败，使用默认位置'
+        : '浏览器不支持定位'
     return lastTrustedLocation
   })()
   try { return await locationRequestInFlight } finally { locationRequestInFlight = null }
