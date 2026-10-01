@@ -19,9 +19,9 @@ public class AuthService {
         SysUser user=users.selectByUsername(request.username());
         if(user == null || !user.isEnabled()) throw new BusinessException(401,"用户名或密码错误");
         if(!encoder.matches(request.password(),user.getPassword())) throw new BusinessException(401,"用户名或密码错误");
-        return new AuthDtos.LoginResponse(jwt.create(user.getUsername(),user.getRole()),"Bearer",jwt.getExpirationSeconds(),user.getUsername(),user.getDisplayName(),user.getRole());
+        return new AuthDtos.LoginResponse(jwt.create(user.getUsername(),user.getRole()),"Bearer",jwt.getExpirationSeconds(),user.getUsername(),displayName(user),user.getRole());
     }
-    public AuthDtos.UserProfile profile(String username){SysUser user=users.selectByUsername(username);if(user==null) throw new BusinessException(404,"用户不存在");return new AuthDtos.UserProfile(user.getUsername(),user.getDisplayName(),user.getRole());}
+    public AuthDtos.UserProfile profile(String username){SysUser user=users.selectByUsername(username);if(user==null) throw new BusinessException(404,"用户不存在");return new AuthDtos.UserProfile(user.getUsername(),displayName(user),user.getRole());}
     public AuthDtos.LoginResponse register(AuthDtos.RegisterRequest request) {
         if (users.selectByUsername(request.username()) != null) throw new BusinessException(409, "用户名已存在");
         users.insert(new SysUser(request.username(), encoder.encode(request.password()), request.displayName(), "USER"));
@@ -40,9 +40,18 @@ public class AuthService {
         int from = Math.min((safePage - 1) * safeSize, filtered.size());
         int to = Math.min(from + safeSize, filtered.size());
         List<AuthDtos.UserAdminView> rows = filtered.subList(from, to).stream()
-                .map(user -> new AuthDtos.UserAdminView(user.getId(), user.getUsername(), user.getDisplayName(), user.getRole(), user.isEnabled()))
+                .map(user -> new AuthDtos.UserAdminView(user.getId(), user.getUsername(), displayName(user), user.getRole(), user.isEnabled()))
                 .collect(Collectors.toList());
         return new AuthDtos.UserPage(rows, total, safePage, safeSize, Math.max(1, (total + safeSize - 1) / safeSize));
+    }
+
+    private String displayName(SysUser user) {
+        // Older demo imports could decode these two seed values with the wrong client charset.
+        return switch (user.getUsername()) {
+            case "demo_admin" -> "演示管理员";
+            case "demo_operator" -> "演示运营员";
+            default -> user.getDisplayName();
+        };
     }
 
     public void setEnabled(Long id, boolean enabled, String operator) {

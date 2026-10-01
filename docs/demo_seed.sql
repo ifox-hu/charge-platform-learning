@@ -14,6 +14,10 @@ INSERT INTO sys_user (display_name, enabled, password, role, username)
 SELECT '演示运营员', b'1', '$2a$10$Y4ypcSEGM5xEJlBW9xWc0eiIamNIjBsNtehxVlGWtP.zOQPN9LQH2', 'OPERATOR', 'demo_operator'
 WHERE NOT EXISTS (SELECT 1 FROM sys_user WHERE username = 'demo_operator');
 
+-- Keep existing demo rows correct when this idempotent seed is re-run.
+UPDATE sys_user SET display_name = '演示管理员' WHERE username = 'demo_admin';
+UPDATE sys_user SET display_name = '演示运营员' WHERE username = 'demo_operator';
+
 INSERT INTO station (name, address, description, status, latitude, longitude, coordinate_type)
 SELECT '开发演示站', '示例地址（请修改）', '仅供本地功能演示', 'OPERATING', NULL, NULL, 'GCJ02'
 WHERE NOT EXISTS (SELECT 1 FROM station WHERE name = '开发演示站');

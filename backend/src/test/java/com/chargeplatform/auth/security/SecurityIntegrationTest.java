@@ -17,9 +17,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -77,6 +79,16 @@ class SecurityIntegrationTest {
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code").value(401))
             .andExpect(jsonPath("$.message").value("请先登录"));
+    }
+
+    @Test
+    void browserCanPreflightPatchUserStatus() throws Exception {
+        mockMvc.perform(options("/api/auth/users/5/status")
+                .header("Origin", "https://example.github.io")
+                .header("Access-Control-Request-Method", "PATCH")
+                .header("Access-Control-Request-Headers", "authorization,content-type"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Access-Control-Allow-Methods", org.hamcrest.Matchers.containsString("PATCH")));
     }
 
     @Test

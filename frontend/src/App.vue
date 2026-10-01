@@ -26,16 +26,19 @@ const mapContainer = ref(null)
 const mapError = ref('')
 const mapLocationLabel = ref('正在获取当前位置')
 const demoMapFallback = ref(false)
+const demoMapLocation = ref([113.394, 23.057])
 const demoMapMarkers = computed(() => stations.value.map((station, index) => ({
   ...station,
-  left: `${24 + (index % 3) * 27}%`,
-  top: `${34 + (index % 2) * 25}%`
+  left: `${Math.max(8, Math.min(92, 50 + (Number(station.longitude) - demoMapLocation.value[0]) * 35))}%`,
+  top: `${Math.max(12, Math.min(88, 50 - (Number(station.latitude) - demoMapLocation.value[1]) * 35))}%`
 })))
 let mapInstance
 let mapScriptPromise
 let mapElement
 let mapTileTimer
 let mapInitVersion = 0
+let lastTrustedLocation = null
+let locationRequestInFlight = null
 const stations = ref([])
 const stationRows = ref([])
 const chargers = ref([])
@@ -139,14 +142,14 @@ function loadAmap() {
     if (!key) return reject(new Error('未配置高德地图 Key'))
     window._AMapSecurityConfig = { securityJsCode: securityCode }
     const script = document.createElement('script')
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=${key}&plugin=AMap.Geocoder`
+    script.src = `https://webapi.amap.com/maps?v=2.0&key=${key}&plugin=AMap.Geocoder,AMap.Geolocation`
     script.onload = () => resolve(window.AMap)
     script.onerror = () => reject(new Error('高德地图加载失败'))
     document.head.appendChild(script)
   })
   return mapScriptPromise
 }
-async function initStationMap() {
+async function initStationMap(allowLocationJump = false) {
   const version = ++mapInitVersion
   const container = mapContainer.value
   if (!container || !stations.value.length) return
@@ -158,7 +161,10 @@ async function initStationMap() {
     if (version !== mapInitVersion) return
     demoMapFallback.value = true
     mapError.value = ''
-    mapLocationLabel.value = '演示默认位置'
+    const location = await getBrowserLocation()
+    if (version !== mapInitVersion) return
+    if (location) demoMapLocation.value = location
+    mapLocationLabel.value = location ? '演示当前位置' : '演示默认位置'
     return
   }
   try {
@@ -166,7 +172,7 @@ async function initStationMap() {
     demoMapFallback.value = false
     const AMap = await loadAmap()
     if (!isCurrent()) return
-    const currentLocation = await getBrowserLocation()
+    const currentLocation = await getBrowserLocation(allowLocationJump)
     if (!isCurrent()) return
     const center = currentLocation || [113.394, 23.057]
     if (mapInstance && mapElement !== container) {
@@ -174,10 +180,14 @@ async function initStationMap() {
       mapInstance = null
       mapElement = null
     }
+    const mapZoom = currentLocation ? 17 : 12
     if (!mapInstance) {
-      mapInstance = new AMap.Map(container, { zoom: 12, center })
+      mapInstance = new AMap.Map(container, { zoom: mapZoom, center })
       mapElement = container
-    } else mapInstance.setCenter(center)
+    } else {
+      mapInstance.setCenter(center)
+      mapInstance.setZoom(mapZoom)
+    }
     const geocoder = new AMap.Geocoder()
     const points = []
     let unresolvedStations = 0
@@ -217,7 +227,21 @@ async function initStationMap() {
     })
     const locationMarker = new AMap.Marker({ position: center, title: currentLocation ? '我的位置' : '默认位置', anchor: 'bottom-center', content: `<div class="map-user-location"><span>${currentLocation ? '当前位置' : '默认位置'}</span><i></i></div>` })
     mapInstance.add(locationMarker)
-    if (points.length) mapInstance.setFitView()
+    // Never fit every station into the viewport: demo data can span several
+    // provinces and would make the quick-demo map zoom out to a whole region.
+    // Keep the configured demo center at a useful city-level zoom instead.
+    if (currentLocation) {
+      // Re-apply after markers are added so a stale map instance or a pending
+      // fit operation cannot widen the quick-demo viewport to a province.
+      mapInstance.setCenter(center)
+      mapInstance.setZoom(mapZoom)
+      window.setTimeout(() => {
+        if (isCurrent() && mapInstance) {
+          mapInstance.setCenter(center)
+          mapInstance.setZoom(mapZoom)
+        }
+      }, 250)
+    }
     mapError.value = unresolvedStations
       ? `${unresolvedStations} 个站点地址暂未解析出有效坐标，请补充省市信息`
       : ''
@@ -252,7 +276,7 @@ async function initStationMap() {
 function refreshPage() { window.location.reload() }
 async function relocateMap() {
   mapLocationLabel.value = '正在重新定位'
-  await initStationMap()
+  await initStationMap(true)
   if (!mapError.value && mapLocationLabel.value === '正在重新定位') mapLocationLabel.value = '已定位到当前位置'
 }
 async function retryDeadLetters() { await run(async () => { const result = await api.retryDeadLetters(100); await refreshAll(); show(`已重试 ${result.count || 0} 条死信`) }) }
@@ -262,23 +286,91 @@ function isChinaCoordinate(longitude, latitude) {
     && Number(longitude) >= 73 && Number(longitude) <= 135
     && Number(latitude) >= 3 && Number(latitude) <= 54
 }
-function getBrowserLocation() {
+function toLocationArray(point) {
+  if (!point) return null
+  const location = typeof point.toArray === 'function' ? point.toArray() : point
+  return isChinaCoordinate(location?.[0], location?.[1]) ? [Number(location[0]), Number(location[1])] : null
+}
+function distanceKm(left, right) {
+  const toRadians = value => Number(value) * Math.PI / 180
+  const latitudeDelta = toRadians(right[1] - left[1])
+  const longitudeDelta = toRadians(right[0] - left[0])
+  const a = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(toRadians(left[1])) * Math.cos(toRadians(right[1])) * Math.sin(longitudeDelta / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+function locationCandidate(result) {
+  const point = result?.position || result?.location || result
+  const location = toLocationArray(point)
+  if (!location) return null
+  const accuracy = Number(result?.accuracy ?? result?.coords?.accuracy ?? point?.accuracy)
+  return { location, accuracy: Number.isFinite(accuracy) ? accuracy : null }
+}
+function acceptLocation(candidate, allowLocationJump) {
+  if (!candidate) return null
+  // Do not turn a kilometer-level IP estimate into the user's current marker.
+  if (candidate.accuracy == null || candidate.accuracy > 500) return null
+  if (!allowLocationJump && lastTrustedLocation && distanceKm(lastTrustedLocation, candidate.location) > 50) return null
+  lastTrustedLocation = candidate.location
+  return candidate.location
+}
+function getAmapLocation() {
   return new Promise(resolve => {
-    if (!navigator.geolocation) { mapLocationLabel.value = '浏览器不支持定位'; return resolve(null) }
-    navigator.geolocation.getCurrentPosition(position => {
-      const gpsLocation = [position.coords.longitude, position.coords.latitude]
-      if (!window.AMap?.convertFrom) {
-        mapLocationLabel.value = '已定位到当前位置'
-        return resolve(gpsLocation)
-      }
-      window.AMap.convertFrom(gpsLocation, 'gps', (status, result) => {
-        const converted = status === 'complete' && result.locations?.[0]
-        const location = converted && typeof converted.toArray === 'function' ? converted.toArray() : gpsLocation
-        mapLocationLabel.value = '已定位到当前位置'
-        resolve(location)
-      })
-    }, () => { mapLocationLabel.value = '定位权限未开启，使用默认位置'; resolve(null) }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 })
+    if (!window.AMap?.Geolocation) return resolve(null)
+    const geolocation = new window.AMap.Geolocation({
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0,
+      convert: true,
+      noIpLocate: true,
+      showButton: false,
+      showMarker: false,
+      showCircle: false,
+      needAddress: false
+    })
+    geolocation.getCurrentPosition((status, result) => {
+      if (status !== 'complete') return resolve(null)
+      resolve(locationCandidate(result))
+    })
   })
+}
+async function getBrowserLocation(allowLocationJump = false) {
+  if (locationRequestInFlight) return locationRequestInFlight
+  locationRequestInFlight = (async () => {
+    // Browser GPS/Wi-Fi positioning is the only source suitable for the
+    // initial view. AMap Geolocation can fall back to IP positioning on desktop.
+    if (navigator.geolocation) {
+      const browserLocation = await new Promise(resolve => {
+        navigator.geolocation.getCurrentPosition(position => {
+          const gpsLocation = [position.coords.longitude, position.coords.latitude]
+          const finish = converted => resolve({
+            location: converted || gpsLocation,
+            accuracy: Number(position.coords.accuracy)
+          })
+          if (!window.AMap?.convertFrom) return finish(gpsLocation)
+          window.AMap.convertFrom(gpsLocation, 'gps', (status, result) => {
+            const converted = status === 'complete' && result.locations?.[0]
+            finish(toLocationArray(converted))
+          })
+        }, () => resolve(null), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 })
+      })
+      const location = acceptLocation(browserLocation, allowLocationJump)
+      if (location) {
+        mapLocationLabel.value = '已通过浏览器高精度定位'
+        return location
+      }
+    }
+    const amapLocation = acceptLocation(await getAmapLocation(), allowLocationJump)
+    if (amapLocation) {
+      mapLocationLabel.value = '已通过高德定位'
+      return amapLocation
+    }
+    mapLocationLabel.value = lastTrustedLocation
+      ? '定位精度不足，保留上次位置'
+      : navigator.geolocation ? '定位失败，使用默认位置' : '浏览器不支持定位'
+    return lastTrustedLocation
+  })()
+  try { return await locationRequestInFlight } finally { locationRequestInFlight = null }
 }
 async function refreshSimulator() {
   if (!loggedIn.value) return
@@ -530,7 +622,7 @@ onUnmounted(() => { window.removeEventListener('auth-expired', logout); if (simu
         <div class="hero"><div><span>新能源基础设施</span><h2>让每一次充电<br>都有迹可循</h2><p>从设备接入、状态管理到订单计费，一条完整的充电业务链路。</p></div><div class="hero-mark">ϟ</div></div>
         <div class="stats"><article><small>充电站</small><b>{{ dashboard.stationCount || 0 }}</b><em>STATIONS</em></article><article><small>充电桩</small><b>{{ dashboard.chargerCount || 0 }}</b><em>CHARGERS</em></article><article><small>充电枪</small><b>{{ dashboard.connectorCount || 0 }}</b><em>CONNECTORS</em></article><article class="green"><small>正在充电</small><b>{{ dashboard.chargingOrderCount || 0 }}</b><em>ACTIVE ORDERS</em></article><article><small>已完成订单</small><b>{{ dashboard.completedOrderCount || 0 }}</b><em>COMPLETED</em></article></div>
         <div class="simulator-strip"><div class="simulator-mark">ϟ</div><div class="simulator-copy"><small>LIVE DEVICE FLEET</small><strong>虚拟充电桩集群</strong><span>{{ simulatorStatus.enabled ? 'TCP 状态同步已启用 · 点击枪状态可进行测试操作' : '模拟桩适配器未启用' }}</span></div><div class="simulator-devices"><span v-for="device in simulatorStatus.devices" :key="device.deviceId" class="simulator-device" :class="{ online: device.connected }"><i></i><b>{{ device.deviceId }} · {{ device.connected ? 'ONLINE' : 'OFFLINE' }}</b><small v-for="connector in Object.values(device.connectors || {})" :key="connector.connectorId" class="simulator-connector-control" :class="{ charging: connector.status === 'CHARGING' }" title="点击进行测试操作" @click.stop="openSimulatorConnector(device, connector)">枪{{ connector.connectorId }} {{ statusText(connector.status) }}<template v-if="connector.status === 'CHARGING'"> · {{ Number(connector.powerKw || 0).toFixed(1) }} kW · {{ Number(connector.currentA || ((Number(connector.powerKw || 0) * 1000) / 220) || 0).toFixed(1) }} A · {{ Number(connector.energyKwh || 0).toFixed(3) }} kWh</template></small></span></div></div>
-        <div class="map-panel"><div class="map-panel-head"><div><small>LIVE LOCATION</small><h3>附近充电站</h3></div><div class="map-actions"><div class="map-refresh-row"><span>若无显示请刷新</span><button class="map-refresh" type="button" @click="refreshPage" title="刷新网页">↻ 刷新</button></div><div class="map-location-status"><span>{{ mapLocationLabel }}</span><button type="button" @click="relocateMap">重新定位</button></div></div></div><div ref="mapContainer" class="station-map"><div v-if="demoMapFallback" class="demo-map"><div class="demo-map-grid"></div><div class="demo-map-water"></div><span class="demo-map-road road-one"></span><span class="demo-map-road road-two"></span><button v-for="station in demoMapMarkers" :key="station.id" class="demo-map-marker" :style="{ left: station.left, top: station.top }" type="button" @click="show(`${station.name} · ${station.address || '暂无地址'}`)"><i></i><strong>{{ station.name }}</strong><small>{{ Number(station.latitude).toFixed(4) }}, {{ Number(station.longitude).toFixed(4) }}</small></button><div class="demo-map-location"><i></i><span>默认位置</span></div><div class="demo-map-caption">演示地图 · 配置高德 Key 后显示真实地图</div></div></div><p v-if="mapError" class="map-error">{{ mapError }} · 当前仍可使用下方站点列表</p></div>
+        <div class="map-panel"><div class="map-panel-head"><div><small>LIVE LOCATION</small><h3>附近充电站</h3></div><div class="map-actions"><div class="map-refresh-row"><span>若无显示请刷新</span><button class="map-refresh" type="button" @click="refreshPage" title="刷新网页">↻ 刷新</button></div><div class="map-location-status"><span>{{ mapLocationLabel }}</span><button type="button" @click="relocateMap">重新定位</button></div></div></div><div ref="mapContainer" class="station-map"><div v-if="demoMapFallback" class="demo-map"><div class="demo-map-grid"></div><div class="demo-map-water"></div><span class="demo-map-road road-one"></span><span class="demo-map-road road-two"></span><button v-for="station in demoMapMarkers" :key="station.id" class="demo-map-marker" :style="{ left: station.left, top: station.top }" type="button" @click="show(`${station.name} · ${station.address || '暂无地址'}`)"><i></i><strong>{{ station.name }}</strong><small>{{ Number(station.latitude).toFixed(4) }}, {{ Number(station.longitude).toFixed(4) }}</small></button><div class="demo-map-location"><i></i><span>{{ mapLocationLabel }}</span></div><div class="demo-map-caption">示意地图 · 配置高德 Key 后显示真实道路</div></div></div><p v-if="mapError" class="map-error">{{ mapError }} · 当前仍可使用下方站点列表</p></div>
         <div class="panel flow"><div><b>01</b><span>创建站点</span></div><i>→</i><div><b>02</b><span>添加桩与枪</span></div><i>→</i><div><b>03</b><span>配置电价</span></div><i>→</i><div><b>04</b><span>模拟充电</span></div><i>→</i><div><b>05</b><span>自动结算</span></div></div>
       </section>
 
