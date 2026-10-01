@@ -13,7 +13,7 @@ function seed() {
   const station = { id: 1, name: '城市中心示范站', address: '广州市越秀区环市东路', description: '全天候开放的快充示范站', status: 'OPERATING', latitude: 23.1291, longitude: 113.2644, coordinateType: 'GCJ02' }
   const chargers = [1, 2, 3].map((id, index) => ({ id, stationId: 1, code: `PILE-00${id}`, name: `${index + 1} 号快充桩`, status: 'ONLINE' }))
   const connectors = chargers.flatMap(charger => [1, 2].map(localId => ({ id: charger.id * 10 + localId, chargerId: charger.id, code: `${charger.code}-G${localId}`, name: `${localId} 号枪`, ratedPower: charger.id === 3 ? 60 : 120, status: 'IDLE' })))
-  return { stations: [station], chargers, connectors, prices: [{ id: 1, stationId: 1, startTime: '00:00:00', endTime: '23:59:59', electricityPrice: 0.8, servicePrice: 0.4 }], orders: [], auditRows: [], rabbit: { ready: 0, consumers: 1, deadLetters: 0, deadLetterConsumers: 0, queue: 'charge.order.completed', deadLetterQueue: 'charge.order.completed.dlq', exchange: 'charge.order.exchange', routingKey: 'order.completed' } }
+  return { stations: [station], chargers, connectors, prices: [{ id: 1, stationId: 1, startTime: '00:00:00', endTime: '23:59:59', electricityPrice: 0.8, servicePrice: 0.4 }], orders: [], users: [{ id: 1, username: 'demo_admin', displayName: '演示管理员', role: 'ADMIN', enabled: true }, { id: 2, username: 'demo_operator', displayName: '演示运营员', role: 'OPERATOR', enabled: true }, { id: 3, username: 'demo_user', displayName: '演示车主', role: 'USER', enabled: true }], auditRows: [], rabbit: { ready: 0, consumers: 1, deadLetters: 0, deadLetterConsumers: 0, queue: 'charge.order.completed', deadLetterQueue: 'charge.order.completed.dlq', exchange: 'charge.order.exchange', routingKey: 'order.completed' } }
 }
 
 function load() {
@@ -32,6 +32,9 @@ function simulatorStatus() {
 export const mockApi = {
   login: ({ username, password }) => { if (!username || !password || (password !== '123456' && !(username === 'demo_admin' && password === '123456'))) return Promise.reject(new Error('用户名或密码错误')); const role = username.includes('admin') ? 'ADMIN' : 'OPERATOR'; const user = { token: `demo-token-${role}`, tokenType: 'Bearer', expiresIn: 7200, username, displayName: role === 'ADMIN' ? '演示管理员' : '演示运营员', role }; localStorage.setItem('charge-demo-user', JSON.stringify(user)); return result(user) },
   me: () => result(JSON.parse(localStorage.getItem('charge-demo-user') || '{"username":"demo_admin","displayName":"演示管理员","role":"ADMIN"}')),
+  users: (params = {}) => result(pageOf((state.users || []).filter(row => (!params.keyword || row.username.includes(params.keyword) || row.displayName.includes(params.keyword)) && (!params.role || row.role === params.role)), params)),
+  updateUserStatus: (id, enabled) => { const row = (state.users || []).find(x => x.id === Number(id)); if (row) row.enabled = enabled; save(); return result(null) },
+  resetUserPassword: () => result(null),
   dashboard: () => result({ stationCount: state.stations.length, chargerCount: state.chargers.length, connectorCount: state.connectors.length, chargingCount: state.orders.filter(o => o.status === 'CHARGING').length, completedOrderCount: state.orders.filter(o => o.status === 'COMPLETED').length, todayAmount: state.orders.filter(o => o.status === 'COMPLETED').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0) }),
   dependencies: () => result({ redis: 'PONG', rabbitmq: 'UP' }),
   simulatorStatus: () => result(simulatorStatus()),

@@ -8,6 +8,7 @@ const menus = [
   { key: 'devices', icon: 'ϟ', label: '设备管理' },
   { key: 'prices', icon: '¥', label: '分时电价' },
   { key: 'orders', icon: '▤', label: '充电订单' }
+  ,{ key: 'users', icon: '◎', label: '用户账号' }
   ,{ key: 'audit', icon: '◷', label: '操作审计' }
   ,{ key: 'rabbitmq', icon: '⇄', label: '消息监控' }
 ]
@@ -40,11 +41,13 @@ const connectors = ref([])
 const prices = ref([])
 const orders = ref([])
 const auditRows = ref([])
+const userRows = ref([])
 const rabbitOverview = ref({ ready: 0, consumers: 0, deadLetters: 0, deadLetterConsumers: 0, queue: '', deadLetterQueue: '' })
 const selectedOrderIds = ref([])
 const stationPagination = reactive({ page: 1, size: 10, total: 0, totalPages: 0, name: '' })
 const orderPagination = reactive({ page: 1, size: 10, total: 0, totalPages: 0, plateNumber: '' })
 const auditPagination = reactive({ page: 1, size: 20, total: 0, totalPages: 0, username: '' })
+const userPagination = reactive({ page: 1, size: 20, total: 0, totalPages: 0, keyword: '', role: '' })
 const stationForm = reactive({ name: '', address: '', description: '' })
 const chargerForm = reactive({ stationId: '', code: '', name: '' })
 const connectorForm = reactive({ chargerId: '', code: '', name: '', ratedPower: 120 })
@@ -74,6 +77,7 @@ let realtimeSocket
 let realtimeReconnectTimer
 const currentTitle = computed(() => menus.find(item => item.key === active.value)?.label)
 const isAdmin = computed(() => currentUser.value?.role === 'ADMIN')
+const canManageUsers = computed(() => ['ADMIN', 'OPERATOR'].includes(currentUser.value?.role))
 const stationDisplayNumber = index => (stationPagination.page - 1) * stationPagination.size + index + 1
 const chargerDisplayNumber = chargerId => chargers.value.findIndex(item => item.id === chargerId) + 1
 const stationDisplayById = stationId => stations.value.findIndex(item => item.id === stationId) + 1
@@ -100,6 +104,11 @@ async function refreshAll() {
       auditRows.value = auditPage.rows
       Object.assign(auditPagination, { total: auditPage.total, totalPages: auditPage.totalPages })
       rabbitOverview.value = await api.rabbitOverview()
+    }
+    if (canManageUsers.value) {
+      const userPage = await api.users(userPagination)
+      userRows.value = userPage.rows
+      Object.assign(userPagination, { total: userPage.total, totalPages: userPage.totalPages })
     }
     if (!stationForm.name && stations.value.length) {
       chargerForm.stationId ||= stations.value[0].id
@@ -308,6 +317,16 @@ function logout() { authStore.clear(); loggedIn.value = false; currentUser.value
 async function changeStationPage(step) { stationPagination.page += step; await refreshAll() }
 async function changeOrderPage(step) { orderPagination.page += step; await refreshAll() }
 async function changeAuditPage(step) { auditPagination.page += step; await refreshAll() }
+async function changeUserPage(step) { userPagination.page += step; await refreshAll() }
+async function updateUserStatus(user) {
+  await run(async () => { await api.updateUserStatus(user.id, !user.enabled); await refreshAll() }, user.enabled ? '账号已禁用' : '账号已启用')
+}
+async function resetUserPassword(user) {
+  const password = window.prompt(`请输入 ${user.username} 的新密码（至少6位）`, '123456')
+  if (password === null) return
+  if (password.length < 6) { show('密码至少需要6位', true); return }
+  await run(async () => { await api.resetUserPassword(user.id, password) }, '密码已重置')
+}
 async function cleanupAuditLogs(days) {
   if (!confirm(`确认永久清理 ${days} 天前的审计日志？此操作不可恢复。`)) return
   await run(async () => { await api.cleanupAuditLogs(days); auditPagination.page = 1; await refreshAll() }, `已清理 ${days} 天前的审计日志`)
@@ -436,7 +455,7 @@ onUnmounted(() => { window.removeEventListener('auth-expired', logout); if (simu
   <div v-else class="shell">
     <aside>
       <div class="brand"><span class="bolt">ϟ</span><div><strong>ChargeLite</strong><small>充电运营平台</small></div></div>
-      <nav><button v-for="item in menus" v-show="item.key !== 'rabbitmq' || isAdmin" :key="item.key" :class="{ active: active === item.key }" @click="active = item.key"><span>{{ item.icon }}</span>{{ item.label }}</button></nav>
+       <nav><button v-for="item in menus" v-show="(item.key !== 'rabbitmq' || isAdmin) && (item.key !== 'users' || canManageUsers)" :key="item.key" :class="{ active: active === item.key }" @click="active = item.key"><span>{{ item.icon }}</span>{{ item.label }}</button></nav>
       <div class="aside-foot"><span class="dot"></span>后端服务连接正常<small class="dependency-status">Redis：{{ dependencyText(dependencyHealth.redis) }} · RabbitMQ：{{ dependencyText(dependencyHealth.rabbitmq) }}</small></div>
     </aside>
     <main>
@@ -468,6 +487,14 @@ onUnmounted(() => { window.removeEventListener('auth-expired', logout); if (simu
         <div class="panel table-panel"><div class="panel-title"><h3>当前价格方案</h3><span>{{ prices.length }} 个时段</span></div><table><thead><tr><th>时间范围</th><th>电费</th><th>服务费</th><th>合计</th><th></th></tr></thead><tbody><tr v-for="p in prices" :key="p.id"><td>{{ p.startTime }} — {{ p.endTime }}</td><td>{{ money(p.electricityPrice) }}</td><td>{{ money(p.servicePrice) }}</td><td><strong>{{ money(Number(p.electricityPrice)+Number(p.servicePrice)) }}/度</strong></td><td><button v-if="isAdmin" class="edit-link" @click="openEdit('price', p)">编辑</button><button v-if="isAdmin" class="danger-link" @click="removePrice(p)">删除</button></td></tr></tbody></table></div>
       </section>
 
+      <section v-else-if="active === 'users'" class="users-page">
+        <div class="panel table-panel">
+          <div class="panel-title"><div><h3>用户账号</h3><p class="rabbitmq-subtitle">管理小程序注册的车主账号和运营账号状态</p></div><span>{{ userPagination.total }} 个账号</span></div>
+          <div class="search-bar user-search"><input v-model="userPagination.keyword" placeholder="按用户名或昵称搜索" @keyup.enter="userPagination.page=1;refreshAll()"><select v-model="userPagination.role" @change="userPagination.page=1;refreshAll()"><option value="">全部角色</option><option value="USER">普通用户</option><option value="OPERATOR">运营员</option><option value="ADMIN">管理员</option></select><button class="ghost" @click="userPagination.page=1;refreshAll()">查询</button></div>
+          <table><thead><tr><th>账号</th><th>角色</th><th>状态</th><th>说明</th><th>操作</th></tr></thead><tbody><tr v-for="user in userRows" :key="user.id"><td><strong>{{ user.displayName }}</strong><small>{{ user.username }}</small></td><td><span class="badge" :class="user.role.toLowerCase()">{{ user.role === 'USER' ? '普通用户' : user.role === 'OPERATOR' ? '运营员' : '管理员' }}</span></td><td><span class="badge" :class="user.enabled ? 'completed' : 'fault'">{{ user.enabled ? '正常' : '已禁用' }}</span></td><td>{{ user.role === 'USER' ? '可使用小程序下单充电' : '可登录运营后台' }}</td><td><button v-if="isAdmin && user.role !== 'ADMIN'" class="edit-link" @click="updateUserStatus(user)">{{ user.enabled ? '禁用' : '启用' }}</button><button v-if="isAdmin && user.role !== 'ADMIN'" class="edit-link" @click="resetUserPassword(user)">重置密码</button><span v-if="user.role === 'ADMIN'" class="muted">受保护</span></td></tr><tr v-if="!userRows.length"><td colspan="5" class="empty-cell">暂无匹配账号</td></tr></tbody></table>
+          <div class="pagination"><button :disabled="userPagination.page<=1" @click="changeUserPage(-1)">上一页</button><span>{{ userPagination.page }} / {{ userPagination.totalPages || 1 }}</span><button :disabled="userPagination.page>=userPagination.totalPages" @click="changeUserPage(1)">下一页</button></div>
+        </div>
+      </section>
       <section v-else-if="active === 'audit'">
         <div class="audit-toolbar"><span>审计日志保留策略</span><button class="ghost" @click="cleanupAuditLogs(7)">清理7天前</button><button class="ghost" @click="cleanupAuditLogs(30)">清理30天前</button></div>
         <div class="panel table-panel"><div class="panel-title"><h3>操作审计</h3><span>{{ auditPagination.total }} 条记录</span></div><div class="search-bar"><input v-model="auditPagination.username" placeholder="按用户名搜索" @keyup.enter="auditPagination.page=1;refreshAll()"><button class="ghost" @click="auditPagination.page=1;refreshAll()">查询</button></div><table><thead><tr><th>时间</th><th>用户 / 角色</th><th>操作</th><th>接口</th><th>结果</th><th>来源 IP</th></tr></thead><tbody><tr v-for="log in auditRows" :key="log.id"><td>{{ log.createdAt ? new Date(log.createdAt).toLocaleString() : '-' }}</td><td><strong>{{ log.username }}</strong><small>{{ log.role }}</small></td><td>{{ log.method }}</td><td>{{ log.path }}</td><td><span class="badge" :class="log.statusCode >= 400 ? 'fault' : 'completed'">{{ log.statusCode }}</span></td><td>{{ log.clientIp || '-' }}</td></tr></tbody></table><div class="pagination"><button :disabled="auditPagination.page<=1" @click="changeAuditPage(-1)">上一页</button><span>{{ auditPagination.page }} / {{ auditPagination.totalPages || 1 }}</span><button :disabled="auditPagination.page>=auditPagination.totalPages" @click="changeAuditPage(1)">下一页</button></div></div>

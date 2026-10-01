@@ -72,7 +72,7 @@ npm run dev
 主要功能：
 
 - 站点、充电桩、充电枪、分时电价和订单管理。
-- ADMIN/OPERATOR 权限、操作审计、订单导出。
+- ADMIN/OPERATOR 权限、普通用户账号管理、操作审计、订单导出。
 - Redis 看板缓存，RabbitMQ 订单完成事件和死信队列。
 - WebSocket 设备状态推送，断线后轮询兜底。
 - Web 与小程序地图定位、地址解析和模拟充电。
@@ -265,6 +265,8 @@ npm run dev -- --host 0.0.0.0
 ~~~
 
 访问 http://localhost:5174。Vite 把 /api 和 /ws 代理到 8081；发布执行 npm run build。
+
+Web 端登录 ADMIN 或 OPERATOR 后可打开“用户账号”：按用户名、昵称和角色筛选普通用户/运营员/管理员。ADMIN 可以启用或禁用普通用户、重置密码；OPERATOR 只读查看。管理员账号在页面中受保护，普通用户只允许通过微信小程序访问自己的订单。
 
 ### 4.4 小程序
 

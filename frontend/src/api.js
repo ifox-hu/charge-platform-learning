@@ -31,6 +31,9 @@ http.interceptors.response.use(
 const realApi = {
   login: data => http.post('/auth/login', data),
   me: () => http.get('/auth/me'),
+  users: params => http.get('/auth/users', { params }),
+  updateUserStatus: (id, enabled) => http.patch(`/auth/users/${id}/status`, null, { params: { enabled } }),
+  resetUserPassword: (id, password) => http.post(`/auth/users/${id}/reset-password`, { password }),
   dashboard: () => http.get('/dashboard'),
   dependencies: () => http.get('/health/dependencies'),
   simulatorStatus: () => http.get('/simulator/status'),
