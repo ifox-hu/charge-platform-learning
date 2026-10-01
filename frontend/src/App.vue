@@ -24,6 +24,12 @@ const simulatorStatus = ref({ enabled: false, devices: [] })
 const mapContainer = ref(null)
 const mapError = ref('')
 const mapLocationLabel = ref('正在获取当前位置')
+const demoMapFallback = ref(false)
+const demoMapMarkers = computed(() => stations.value.map((station, index) => ({
+  ...station,
+  left: `${24 + (index % 3) * 27}%`,
+  top: `${34 + (index % 2) * 25}%`
+})))
 let mapInstance
 let mapScriptPromise
 let mapElement
@@ -124,7 +130,14 @@ function loadAmap() {
 }
 async function initStationMap() {
   if (!mapContainer.value || !stations.value.length) return
+  if (demoMode && !import.meta.env.VITE_AMAP_KEY) {
+    demoMapFallback.value = true
+    mapError.value = ''
+    mapLocationLabel.value = '演示默认位置'
+    return
+  }
   try {
+    demoMapFallback.value = false
     const AMap = await loadAmap()
     const currentLocation = await getBrowserLocation()
     const center = currentLocation || [113.394, 23.057]
@@ -176,7 +189,13 @@ async function initStationMap() {
     mapError.value = unresolvedStations
       ? `${unresolvedStations} 个站点地址暂未解析出有效坐标，请补充省市信息`
       : ''
-  } catch (error) { mapError.value = error.message || '地图加载失败' }
+  } catch (error) {
+    if (demoMode) {
+      demoMapFallback.value = true
+      mapError.value = ''
+      mapLocationLabel.value = '演示默认位置'
+    } else mapError.value = error.message || '地图加载失败'
+  }
 }
 function refreshPage() { window.location.reload() }
 async function relocateMap() {
@@ -429,7 +448,7 @@ onUnmounted(() => { window.removeEventListener('auth-expired', logout); if (simu
         <div class="hero"><div><span>新能源基础设施</span><h2>让每一次充电<br>都有迹可循</h2><p>从设备接入、状态管理到订单计费，一条完整的充电业务链路。</p></div><div class="hero-mark">ϟ</div></div>
         <div class="stats"><article><small>充电站</small><b>{{ dashboard.stationCount || 0 }}</b><em>STATIONS</em></article><article><small>充电桩</small><b>{{ dashboard.chargerCount || 0 }}</b><em>CHARGERS</em></article><article><small>充电枪</small><b>{{ dashboard.connectorCount || 0 }}</b><em>CONNECTORS</em></article><article class="green"><small>正在充电</small><b>{{ dashboard.chargingOrderCount || 0 }}</b><em>ACTIVE ORDERS</em></article><article><small>已完成订单</small><b>{{ dashboard.completedOrderCount || 0 }}</b><em>COMPLETED</em></article></div>
         <div class="simulator-strip"><div class="simulator-mark">ϟ</div><div class="simulator-copy"><small>LIVE DEVICE FLEET</small><strong>虚拟充电桩集群</strong><span>{{ simulatorStatus.enabled ? 'TCP 状态同步已启用 · 点击枪状态可进行测试操作' : '模拟桩适配器未启用' }}</span></div><div class="simulator-devices"><span v-for="device in simulatorStatus.devices" :key="device.deviceId" class="simulator-device" :class="{ online: device.connected }"><i></i><b>{{ device.deviceId }} · {{ device.connected ? 'ONLINE' : 'OFFLINE' }}</b><small v-for="connector in Object.values(device.connectors || {})" :key="connector.connectorId" class="simulator-connector-control" :class="{ charging: connector.status === 'CHARGING' }" title="点击进行测试操作" @click.stop="openSimulatorConnector(device, connector)">枪{{ connector.connectorId }} {{ statusText(connector.status) }}<template v-if="connector.status === 'CHARGING'"> · {{ Number(connector.powerKw || 0).toFixed(1) }} kW · {{ Number(connector.currentA || ((Number(connector.powerKw || 0) * 1000) / 220) || 0).toFixed(1) }} A · {{ Number(connector.energyKwh || 0).toFixed(3) }} kWh</template></small></span></div></div>
-        <div class="map-panel"><div class="map-panel-head"><div><small>LIVE LOCATION</small><h3>附近充电站</h3></div><div class="map-actions"><div class="map-refresh-row"><span>若无显示请刷新</span><button class="map-refresh" type="button" @click="refreshPage" title="刷新网页">↻ 刷新</button></div><div class="map-location-status"><span>{{ mapLocationLabel }}</span><button type="button" @click="relocateMap">重新定位</button></div></div></div><div ref="mapContainer" class="station-map"></div><p v-if="mapError" class="map-error">{{ mapError }} · 当前仍可使用下方站点列表</p></div>
+        <div class="map-panel"><div class="map-panel-head"><div><small>LIVE LOCATION</small><h3>附近充电站</h3></div><div class="map-actions"><div class="map-refresh-row"><span>若无显示请刷新</span><button class="map-refresh" type="button" @click="refreshPage" title="刷新网页">↻ 刷新</button></div><div class="map-location-status"><span>{{ mapLocationLabel }}</span><button type="button" @click="relocateMap">重新定位</button></div></div></div><div ref="mapContainer" class="station-map"><div v-if="demoMapFallback" class="demo-map"><div class="demo-map-grid"></div><div class="demo-map-water"></div><span class="demo-map-road road-one"></span><span class="demo-map-road road-two"></span><button v-for="station in demoMapMarkers" :key="station.id" class="demo-map-marker" :style="{ left: station.left, top: station.top }" type="button" @click="show(`${station.name} · ${station.address || '暂无地址'}`)"><i></i><strong>{{ station.name }}</strong><small>{{ Number(station.latitude).toFixed(4) }}, {{ Number(station.longitude).toFixed(4) }}</small></button><div class="demo-map-location"><i></i><span>默认位置</span></div><div class="demo-map-caption">演示地图 · 配置高德 Key 后显示真实地图</div></div></div><p v-if="mapError" class="map-error">{{ mapError }} · 当前仍可使用下方站点列表</p></div>
         <div class="panel flow"><div><b>01</b><span>创建站点</span></div><i>→</i><div><b>02</b><span>添加桩与枪</span></div><i>→</i><div><b>03</b><span>配置电价</span></div><i>→</i><div><b>04</b><span>模拟充电</span></div><i>→</i><div><b>05</b><span>自动结算</span></div></div>
       </section>
 
