@@ -40,4 +40,10 @@ public interface ChargeOrderMapper extends BaseMapper<ChargeOrder> {
     @Select("SELECT COUNT(*) > 0 FROM charge_order WHERE owner_username = #{username}")
     boolean existsByOwnerUsername(@Param("username") String username);
 
+    @Select("SELECT * FROM charge_order WHERE owner_username = #{username} ORDER BY id DESC")
+    List<ChargeOrder> selectByOwnerUsername(@Param("username") String username);
+
+    @Update("UPDATE charge_order SET owner_username = NULL WHERE owner_username = #{username}")
+    int clearOwnerUsername(@Param("username") String username);
+
 }

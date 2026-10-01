@@ -70,6 +70,7 @@ const simulatorPlans = [
 const simulatorModal = reactive({ open: false, mode: 'packages', deviceId: '', connectorId: 1, packageCode: 'FULL', plateNumber: '' })
 const editModal = reactive({ open: false, type: '', id: null, title: '', form: {} })
 const orderDetailModal = reactive({ open: false, order: null })
+const userOrdersModal = reactive({ open: false, user: null, orders: [], loading: false })
 const selectedSimulatorDevice = computed(() => simulatorStatus.value.devices.find(item => item.deviceId === simulatorModal.deviceId))
 const selectedSimulatorConnector = computed(() => selectedSimulatorDevice.value?.connectors?.[simulatorModal.connectorId] || selectedSimulatorDevice.value?.connectors?.[String(simulatorModal.connectorId)])
 const selectedSimulatorPlan = computed(() => simulatorPlans.find(item => item.code === simulatorModal.packageCode) || simulatorPlans[0])
@@ -351,8 +352,24 @@ async function resetUserPassword(user) {
 }
 async function deleteUser(user) {
   if (!window.confirm(`确认删除普通用户“${user.displayName}”吗？删除后不可恢复。`)) return
-  await run(async () => { await api.deleteUser(user.id); await refreshAll() }, '账号已删除')
+  try {
+    await api.deleteUser(user.id)
+    await refreshAll()
+    show('账号已删除')
+  } catch (error) {
+    if (!error.message.includes('已有订单')) return show(error.message, true)
+    if (!window.confirm('该用户已有订单。强制删除会保留订单，但解除订单与该账号的关联，是否继续？')) return
+    await run(async () => { await api.deleteUser(user.id, true); await refreshAll() }, '账号已强制删除，历史订单已保留')
+  }
 }
+async function openUserOrders(user) {
+  userOrdersModal.user = user
+  userOrdersModal.orders = []
+  userOrdersModal.loading = true
+  userOrdersModal.open = true
+  try { userOrdersModal.orders = await api.userOrders(user.id) } catch (error) { show(error.message, true) } finally { userOrdersModal.loading = false }
+}
+function closeUserOrders() { userOrdersModal.open = false; userOrdersModal.user = null; userOrdersModal.orders = [] }
 async function cleanupAuditLogs(days) {
   if (!confirm(`确认永久清理 ${days} 天前的审计日志？此操作不可恢复。`)) return
   await run(async () => { await api.cleanupAuditLogs(days); auditPagination.page = 1; await refreshAll() }, `已清理 ${days} 天前的审计日志`)
@@ -517,7 +534,7 @@ onUnmounted(() => { window.removeEventListener('auth-expired', logout); if (simu
         <div class="panel table-panel">
           <div class="panel-title"><div><h3>用户账号</h3><p class="rabbitmq-subtitle">管理小程序注册的车主账号和运营账号状态</p></div><span>{{ userPagination.total }} 个账号</span></div>
           <div class="search-bar user-search"><input v-model="userPagination.keyword" placeholder="按用户名或昵称搜索" @keyup.enter="userPagination.page=1;refreshAll()"><select v-model="userPagination.role" @change="userPagination.page=1;refreshAll()"><option value="">全部角色</option><option value="USER">普通用户</option><option value="OPERATOR">运营员</option><option value="ADMIN">管理员</option></select><button class="ghost" @click="userPagination.page=1;refreshAll()">查询</button></div>
-          <table><thead><tr><th>账号</th><th>角色</th><th>状态</th><th>说明</th><th>操作</th></tr></thead><tbody><tr v-for="user in userRows" :key="user.id"><td><strong>{{ user.displayName }}</strong><small>{{ user.username }}</small></td><td><span class="badge" :class="user.role.toLowerCase()">{{ user.role === 'USER' ? '普通用户' : user.role === 'OPERATOR' ? '运营员' : '管理员' }}</span></td><td><span class="badge" :class="user.enabled ? 'completed' : 'fault'">{{ user.enabled ? '正常' : '已禁用' }}</span></td><td>{{ user.role === 'USER' ? '可使用小程序下单充电' : '可登录运营后台' }}</td><td><button v-if="isAdmin && user.role === 'USER'" class="edit-link" @click="updateUserStatus(user)">{{ user.enabled ? '禁用' : '启用' }}</button><button v-if="isAdmin && user.role === 'USER'" class="edit-link" @click="resetUserPassword(user)">重置密码</button><button v-if="isAdmin && user.role === 'USER'" class="danger-link" @click="deleteUser(user)">删除</button><span v-if="user.role !== 'USER'" class="muted">受保护</span></td></tr><tr v-if="!userRows.length"><td colspan="5" class="empty-cell">暂无匹配账号</td></tr></tbody></table>
+          <table><thead><tr><th>账号</th><th>角色</th><th>状态</th><th>说明</th><th>操作</th></tr></thead><tbody><tr v-for="user in userRows" :key="user.id"><td><strong>{{ user.displayName }}</strong><small>{{ user.username }}</small></td><td><span class="badge" :class="user.role.toLowerCase()">{{ user.role === 'USER' ? '普通用户' : user.role === 'OPERATOR' ? '运营员' : '管理员' }}</span></td><td><span class="badge" :class="user.enabled ? 'completed' : 'fault'">{{ user.enabled ? '正常' : '已禁用' }}</span></td><td>{{ user.role === 'USER' ? '可使用小程序下单充电' : '可登录运营后台' }}</td><td><button v-if="isAdmin && user.role === 'USER'" class="edit-link" @click="openUserOrders(user)">订单详情</button><button v-if="isAdmin && user.role === 'USER'" class="edit-link" @click="updateUserStatus(user)">{{ user.enabled ? '禁用' : '启用' }}</button><button v-if="isAdmin && user.role === 'USER'" class="edit-link" @click="resetUserPassword(user)">重置密码</button><button v-if="isAdmin && user.role === 'USER'" class="danger-link" @click="deleteUser(user)">删除</button><span v-if="user.role !== 'USER'" class="muted">受保护</span></td></tr><tr v-if="!userRows.length"><td colspan="5" class="empty-cell">暂无匹配账号</td></tr></tbody></table>
           <div class="pagination"><button :disabled="userPagination.page<=1" @click="changeUserPage(-1)">上一页</button><span>{{ userPagination.page }} / {{ userPagination.totalPages || 1 }}</span><button :disabled="userPagination.page>=userPagination.totalPages" @click="changeUserPage(1)">下一页</button></div>
         </div>
       </section>
@@ -561,6 +578,17 @@ onUnmounted(() => { window.removeEventListener('auth-expired', logout); if (simu
           <div class="charge-metrics"><div><small>实时功率</small><b>{{ Number(selectedSimulatorConnector?.powerKw || 0).toFixed(1) }} kW</b></div><div><small>实时电流</small><b>{{ Number(selectedSimulatorConnector?.currentA || ((Number(selectedSimulatorConnector?.powerKw || 0) * 1000) / 220) || 0).toFixed(1) }} A</b></div><div><small>预计剩余</small><b>{{ Math.max(0, Math.ceil((selectedSimulatorPlan.target - Number(selectedSimulatorConnector?.energyKwh || 0)) * 3600 / (Number(selectedSimulatorConnector?.powerKw) || 7.2))) }} 秒</b></div></div>
           <button class="stop modal-stop" @click="stopSimulatorCharging">提前结束充电</button>
         </template>
+      </section>
+    </div>
+    <div v-if="userOrdersModal.open" class="simulator-modal-backdrop" @click.self="closeUserOrders">
+      <section class="simulator-modal user-orders-modal">
+        <button class="modal-close" aria-label="关闭" @click="closeUserOrders">×</button>
+        <small class="modal-eyebrow">USER ORDERS</small>
+        <h2>{{ userOrdersModal.user?.displayName }} 的订单</h2>
+        <p class="modal-subtitle">账号：{{ userOrdersModal.user?.username }} · 共 {{ userOrdersModal.orders.length }} 笔</p>
+        <div v-if="userOrdersModal.loading" class="empty-cell">正在加载订单…</div>
+        <div v-else-if="!userOrdersModal.orders.length" class="empty-cell">该用户暂无订单</div>
+        <div v-else class="user-order-list"><div v-for="order in userOrdersModal.orders" :key="order.id" class="user-order-row"><div><strong>{{ order.orderNo }}</strong><small>{{ order.plateNumber }} · {{ order.startTime ? new Date(order.startTime).toLocaleString() : '-' }}</small></div><span class="badge" :class="order.status.toLowerCase()">{{ statusText(order.status) }}</span><b>{{ money(order.totalAmount) }}</b><button class="edit-link" @click="openOrderDetail(order)">查看</button></div></div>
       </section>
     </div>
     <div v-if="orderDetailModal.open" class="simulator-modal-backdrop" @click.self="closeOrderDetail">

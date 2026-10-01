@@ -59,12 +59,17 @@ public class AuthService {
                 .set(SysUser::getPassword, encoder.encode(request.password())));
     }
 
-    public void deleteUser(Long id, String operator) {
+    public void deleteUser(Long id, String operator, boolean force) {
         SysUser user = requireUser(id);
         if (user.getUsername().equals(operator)) throw new BusinessException(409, "不能删除当前登录账号");
         if (!"USER".equals(user.getRole())) throw new BusinessException(403, "只能删除普通用户账号");
-        if (orders.existsByOwnerUsername(user.getUsername())) throw new BusinessException(409, "该用户已有订单，请改用禁用账号");
+        if (orders.existsByOwnerUsername(user.getUsername()) && !force) throw new BusinessException(409, "该用户已有订单，请确认后强制删除");
+        if (force) orders.clearOwnerUsername(user.getUsername());
         users.deleteById(id);
+    }
+
+    public List<com.chargeplatform.order.domain.ChargeOrder> userOrders(Long id) {
+        return orders.selectByOwnerUsername(requireUser(id).getUsername());
     }
 
     private SysUser requireUser(Long id) {

@@ -21,6 +21,8 @@ npm run dev
 本地真实后端开发不设置该变量即可，前端会继续请求 `/api` 并连接真实 WebSocket。Pages 部署由 `.github/workflows/pages.yml` 在推送到 `main` 后自动完成。
 
 如需在在线演示中显示真实高德地图，在仓库 `Settings -> Secrets and variables -> Actions -> Variables` 新增 `VITE_AMAP_KEY` 和 `VITE_AMAP_SECURITY_CODE`。高德控制台的 Web 端 Key 要把 `ifox-hu.github.io` 加入安全域名白名单。未配置或加载失败时会自动显示虚拟演示地图。
+
+本地 Web 地图白名单不要填写完整 URL。高德控制台的“域名白名单”分别填写 `localhost`、`127.0.0.1`；如果用局域网 IP 访问，再填写电脑局域网 IP，例如 `192.168.1.4`。不要填写 `http://localhost:5174/`、端口、路径或末尾斜杠。GitHub Pages 仍填写 `ifox-hu.github.io`，小程序地图使用微信开发者工具的合法域名校验配置，与 Web Key 白名单分开。
 > 在线 API：需要在 GitHub 仓库 Variables 中配置 `VITE_API_BASE_URL`，例如 `https://api.example.com/api`
 > 演示账号：`demo_admin / 123456`（管理员）、`demo_operator / 123456`（运营员）
 > 本账号仅用于演示环境，请勿用于生产。

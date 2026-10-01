@@ -58,8 +58,14 @@ public class AuthController {
 
     @DeleteMapping("/users/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Void> deleteUser(@PathVariable Long id, Authentication authentication) {
-        service.deleteUser(id, authentication.getName());
+    public ApiResponse<Void> deleteUser(@PathVariable Long id, @RequestParam(defaultValue = "false") boolean force, Authentication authentication) {
+        service.deleteUser(id, authentication.getName(), force);
         return ApiResponse.message("账号已删除");
+    }
+
+    @GetMapping("/users/{id}/orders")
+    @PreAuthorize("hasAnyRole('ADMIN','OPERATOR')")
+    public ApiResponse<java.util.List<com.chargeplatform.order.domain.ChargeOrder>> userOrders(@PathVariable Long id) {
+        return ApiResponse.success(service.userOrders(id));
     }
 }
