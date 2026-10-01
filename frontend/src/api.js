@@ -34,6 +34,7 @@ const realApi = {
   users: params => http.get('/auth/users', { params }),
   updateUserStatus: (id, enabled) => http.patch(`/auth/users/${id}/status`, null, { params: { enabled } }),
   resetUserPassword: (id, password) => http.post(`/auth/users/${id}/reset-password`, { password }),
+  deleteUser: id => http.delete(`/auth/users/${id}`),
   dashboard: () => http.get('/dashboard'),
   dependencies: () => http.get('/health/dependencies'),
   simulatorStatus: () => http.get('/simulator/status'),

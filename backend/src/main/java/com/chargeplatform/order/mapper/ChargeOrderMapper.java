@@ -37,4 +37,7 @@ public interface ChargeOrderMapper extends BaseMapper<ChargeOrder> {
     @Select("SELECT COUNT(*) FROM charge_order WHERE status = #{status} AND archived = 0")
     long countByStatus(@Param("status") String status);
 
+    @Select("SELECT COUNT(*) > 0 FROM charge_order WHERE owner_username = #{username}")
+    boolean existsByOwnerUsername(@Param("username") String username);
+
 }

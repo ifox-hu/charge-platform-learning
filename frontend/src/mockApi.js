@@ -35,6 +35,7 @@ export const mockApi = {
   users: (params = {}) => result(pageOf((state.users || []).filter(row => (!params.keyword || row.username.includes(params.keyword) || row.displayName.includes(params.keyword)) && (!params.role || row.role === params.role)), params)),
   updateUserStatus: (id, enabled) => { const row = (state.users || []).find(x => x.id === Number(id)); if (row) row.enabled = enabled; save(); return result(null) },
   resetUserPassword: () => result(null),
+  deleteUser: id => { state.users = (state.users || []).filter(x => x.id !== Number(id)); save(); return result(null) },
   dashboard: () => result({ stationCount: state.stations.length, chargerCount: state.chargers.length, connectorCount: state.connectors.length, chargingCount: state.orders.filter(o => o.status === 'CHARGING').length, completedOrderCount: state.orders.filter(o => o.status === 'COMPLETED').length, todayAmount: state.orders.filter(o => o.status === 'COMPLETED').reduce((sum, o) => sum + Number(o.totalAmount || 0), 0) }),
   dependencies: () => result({ redis: 'PONG', rabbitmq: 'UP' }),
   simulatorStatus: () => result(simulatorStatus()),

@@ -8,12 +8,13 @@ import org.springframework.stereotype.Service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.chargeplatform.order.mapper.ChargeOrderMapper;
 import java.util.List;
 import java.util.stream.Collectors;
 @Service
 public class AuthService {
-    private final SysUserMapper users;private final PasswordEncoder encoder;private final JwtService jwt;
-    public AuthService(SysUserMapper users,PasswordEncoder encoder,JwtService jwt){this.users=users;this.encoder=encoder;this.jwt=jwt;}
+    private final SysUserMapper users;private final PasswordEncoder encoder;private final JwtService jwt; private final ChargeOrderMapper orders;
+    public AuthService(SysUserMapper users,PasswordEncoder encoder,JwtService jwt, ChargeOrderMapper orders){this.users=users;this.encoder=encoder;this.jwt=jwt;this.orders=orders;}
     public AuthDtos.LoginResponse login(AuthDtos.LoginRequest request){
         SysUser user=users.selectByUsername(request.username());
         if(user == null || !user.isEnabled()) throw new BusinessException(401,"用户名或密码错误");
@@ -52,6 +53,14 @@ public class AuthService {
         users.update(null, new LambdaUpdateWrapper<SysUser>()
                 .eq(SysUser::getId, id)
                 .set(SysUser::getPassword, encoder.encode(request.password())));
+    }
+
+    public void deleteUser(Long id, String operator) {
+        SysUser user = requireUser(id);
+        if (user.getUsername().equals(operator)) throw new BusinessException(409, "不能删除当前登录账号");
+        if (!"USER".equals(user.getRole())) throw new BusinessException(403, "只能删除普通用户账号");
+        if (orders.existsByOwnerUsername(user.getUsername())) throw new BusinessException(409, "该用户已有订单，请改用禁用账号");
+        users.deleteById(id);
     }
 
     private SysUser requireUser(Long id) {

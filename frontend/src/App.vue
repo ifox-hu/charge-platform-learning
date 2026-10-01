@@ -327,6 +327,10 @@ async function resetUserPassword(user) {
   if (password.length < 6) { show('密码至少需要6位', true); return }
   await run(async () => { await api.resetUserPassword(user.id, password) }, '密码已重置')
 }
+async function deleteUser(user) {
+  if (!window.confirm(`确认删除普通用户“${user.displayName}”吗？删除后不可恢复。`)) return
+  await run(async () => { await api.deleteUser(user.id); await refreshAll() }, '账号已删除')
+}
 async function cleanupAuditLogs(days) {
   if (!confirm(`确认永久清理 ${days} 天前的审计日志？此操作不可恢复。`)) return
   await run(async () => { await api.cleanupAuditLogs(days); auditPagination.page = 1; await refreshAll() }, `已清理 ${days} 天前的审计日志`)
@@ -491,7 +495,7 @@ onUnmounted(() => { window.removeEventListener('auth-expired', logout); if (simu
         <div class="panel table-panel">
           <div class="panel-title"><div><h3>用户账号</h3><p class="rabbitmq-subtitle">管理小程序注册的车主账号和运营账号状态</p></div><span>{{ userPagination.total }} 个账号</span></div>
           <div class="search-bar user-search"><input v-model="userPagination.keyword" placeholder="按用户名或昵称搜索" @keyup.enter="userPagination.page=1;refreshAll()"><select v-model="userPagination.role" @change="userPagination.page=1;refreshAll()"><option value="">全部角色</option><option value="USER">普通用户</option><option value="OPERATOR">运营员</option><option value="ADMIN">管理员</option></select><button class="ghost" @click="userPagination.page=1;refreshAll()">查询</button></div>
-          <table><thead><tr><th>账号</th><th>角色</th><th>状态</th><th>说明</th><th>操作</th></tr></thead><tbody><tr v-for="user in userRows" :key="user.id"><td><strong>{{ user.displayName }}</strong><small>{{ user.username }}</small></td><td><span class="badge" :class="user.role.toLowerCase()">{{ user.role === 'USER' ? '普通用户' : user.role === 'OPERATOR' ? '运营员' : '管理员' }}</span></td><td><span class="badge" :class="user.enabled ? 'completed' : 'fault'">{{ user.enabled ? '正常' : '已禁用' }}</span></td><td>{{ user.role === 'USER' ? '可使用小程序下单充电' : '可登录运营后台' }}</td><td><button v-if="isAdmin && user.role !== 'ADMIN'" class="edit-link" @click="updateUserStatus(user)">{{ user.enabled ? '禁用' : '启用' }}</button><button v-if="isAdmin && user.role !== 'ADMIN'" class="edit-link" @click="resetUserPassword(user)">重置密码</button><span v-if="user.role === 'ADMIN'" class="muted">受保护</span></td></tr><tr v-if="!userRows.length"><td colspan="5" class="empty-cell">暂无匹配账号</td></tr></tbody></table>
+          <table><thead><tr><th>账号</th><th>角色</th><th>状态</th><th>说明</th><th>操作</th></tr></thead><tbody><tr v-for="user in userRows" :key="user.id"><td><strong>{{ user.displayName }}</strong><small>{{ user.username }}</small></td><td><span class="badge" :class="user.role.toLowerCase()">{{ user.role === 'USER' ? '普通用户' : user.role === 'OPERATOR' ? '运营员' : '管理员' }}</span></td><td><span class="badge" :class="user.enabled ? 'completed' : 'fault'">{{ user.enabled ? '正常' : '已禁用' }}</span></td><td>{{ user.role === 'USER' ? '可使用小程序下单充电' : '可登录运营后台' }}</td><td><button v-if="isAdmin && user.role === 'USER'" class="edit-link" @click="updateUserStatus(user)">{{ user.enabled ? '禁用' : '启用' }}</button><button v-if="isAdmin && user.role === 'USER'" class="edit-link" @click="resetUserPassword(user)">重置密码</button><button v-if="isAdmin && user.role === 'USER'" class="danger-link" @click="deleteUser(user)">删除</button><span v-if="user.role !== 'USER'" class="muted">受保护</span></td></tr><tr v-if="!userRows.length"><td colspan="5" class="empty-cell">暂无匹配账号</td></tr></tbody></table>
           <div class="pagination"><button :disabled="userPagination.page<=1" @click="changeUserPage(-1)">上一页</button><span>{{ userPagination.page }} / {{ userPagination.totalPages || 1 }}</span><button :disabled="userPagination.page>=userPagination.totalPages" @click="changeUserPage(1)">下一页</button></div>
         </div>
       </section>

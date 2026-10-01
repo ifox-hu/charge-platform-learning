@@ -55,4 +55,11 @@ public class AuthController {
         service.resetPassword(id, request);
         return ApiResponse.message("密码已重置");
     }
+
+    @DeleteMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<Void> deleteUser(@PathVariable Long id, Authentication authentication) {
+        service.deleteUser(id, authentication.getName());
+        return ApiResponse.message("账号已删除");
+    }
 }
