@@ -35,6 +35,7 @@ let mapInstance
 let mapScriptPromise
 let mapElement
 let mapTileTimer
+let mapInitVersion = 0
 const stations = ref([])
 const stationRows = ref([])
 const chargers = ref([])
@@ -123,7 +124,10 @@ async function refreshAll() {
     connectorForm.chargerId ||= chargers.value[0]?.id || ''
     orderForm.connectorId ||= connectors.value[0]?.id || ''
     if (priceForm.stationId) prices.value = await api.prices(priceForm.stationId)
-    if (active.value === 'dashboard') nextTick(initStationMap)
+    if (active.value === 'dashboard') {
+      await nextTick()
+      initStationMap()
+    }
   })
 }
 function loadAmap() {
@@ -143,28 +147,37 @@ function loadAmap() {
   return mapScriptPromise
 }
 async function initStationMap() {
-  if (!mapContainer.value || !stations.value.length) return
+  const version = ++mapInitVersion
+  const container = mapContainer.value
+  if (!container || !stations.value.length) return
+  if (mapTileTimer) {
+    window.clearTimeout(mapTileTimer)
+    mapTileTimer = null
+  }
   if (demoMode && !import.meta.env.VITE_AMAP_KEY) {
+    if (version !== mapInitVersion) return
     demoMapFallback.value = true
     mapError.value = ''
     mapLocationLabel.value = '演示默认位置'
     return
   }
   try {
+    const isCurrent = () => version === mapInitVersion && mapContainer.value === container
     demoMapFallback.value = false
     const AMap = await loadAmap()
+    if (!isCurrent()) return
     const currentLocation = await getBrowserLocation()
+    if (!isCurrent()) return
     const center = currentLocation || [113.394, 23.057]
-    if (mapInstance && mapElement !== mapContainer.value) {
+    if (mapInstance && mapElement !== container) {
       mapInstance.destroy()
       mapInstance = null
+      mapElement = null
     }
     if (!mapInstance) {
-      mapInstance = new AMap.Map(mapContainer.value, { zoom: 12, center })
-      mapElement = mapContainer.value
-    }
-    else mapInstance.setCenter(center)
-    mapInstance.clearMap()
+      mapInstance = new AMap.Map(container, { zoom: 12, center })
+      mapElement = container
+    } else mapInstance.setCenter(center)
     const geocoder = new AMap.Geocoder()
     const points = []
     let unresolvedStations = 0
@@ -180,6 +193,7 @@ async function initStationMap() {
           resolve(point ? (typeof point.toArray === 'function' ? point.toArray() : point) : null)
         }))
         : null
+      if (!isCurrent()) return
       const location = geocodedLocation || (hasStoredLocation ? [storedLongitude, storedLatitude] : null)
       const resolvedLocation = isChinaCoordinate(location?.[0], location?.[1]) ? location : null
       if (!resolvedLocation) { unresolvedStations += 1; continue }
@@ -193,10 +207,14 @@ async function initStationMap() {
         api.updateStationCoordinates(station.id, { latitude: station.latitude, longitude: station.longitude, coordinateType: 'GCJ02' }).catch(() => {})
       }
       points.push({ station, location: resolvedLocation })
-      const marker = new AMap.Marker({ position: resolvedLocation, title: station.name, label: { content: `<div class="map-label">${station.name}</div>`, direction: 'top' } })
+    }
+    if (!isCurrent() || !mapInstance) return
+    mapInstance.clearMap()
+    points.forEach(({ station, location }) => {
+      const marker = new AMap.Marker({ position: location, title: station.name, label: { content: `<div class="map-label">${station.name}</div>`, direction: 'top' } })
       marker.on('click', () => show(`${station.name} · ${station.address || '暂无地址'}`))
       mapInstance.add(marker)
-    }
+    })
     const locationMarker = new AMap.Marker({ position: center, title: currentLocation ? '我的位置' : '默认位置', anchor: 'bottom-center', content: `<div class="map-user-location"><span>${currentLocation ? '当前位置' : '默认位置'}</span><i></i></div>` })
     mapInstance.add(locationMarker)
     if (points.length) mapInstance.setFitView()
@@ -205,11 +223,12 @@ async function initStationMap() {
       : ''
     if (mapTileTimer) window.clearTimeout(mapTileTimer)
     mapTileTimer = window.setTimeout(() => {
-      if (!mapContainer.value || demoMapFallback.value) return
-      const tile = mapContainer.value.querySelector('.amap-layer img')
-      const hasLoadedTile = tile && tile.naturalWidth > 0
-      if (!hasLoadedTile) {
-        mapInstance?.destroy()
+      if (!isCurrent() || !mapInstance || demoMapFallback.value) return
+      // AMap may render tiles through canvas or change its internal DOM structure.
+      // Only fall back when the map root itself was never mounted.
+      const mapRoot = container.querySelector('.amap-container, .amap-maps, .amap-layer, canvas')
+      if (!mapRoot) {
+        mapInstance.destroy()
         mapInstance = null
         mapElement = null
         demoMapFallback.value = true
@@ -218,6 +237,7 @@ async function initStationMap() {
       }
     }, 2500)
   } catch (error) {
+    if (version !== mapInitVersion) return
     if (demoMode) {
       demoMapFallback.value = true
       mapError.value = ''
