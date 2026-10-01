@@ -1,7 +1,24 @@
-.login-brand { padding: 70rpx 8rpx 34rpx; }
-.brand-mark { width: 72rpx; height: 72rpx; display: flex; align-items: center; justify-content: center; border-radius: 17rpx; background: #b8ff5e; color: #18321f; font-size: 46rpx; font-weight: 800; margin-bottom: 22rpx; }
-.eyebrow { color: #69a83c; font-size: 19rpx; font-weight: 700; letter-spacing: 3rpx; }
-.title { font-size: 38rpx; font-weight: 700; margin-bottom: 12rpx; color: #183e2e; }
-.subtitle { color: #7d8c85; font-size: 24rpx; margin-bottom: 32rpx; }
-.input { border: 1rpx solid #d6dfda; border-radius: 12rpx; padding: 22rpx 18rpx; margin-bottom: 20rpx; background: #fafcfb; }
-.hint { margin-top: 24rpx; line-height: 1.6; }
+.login-page { min-height: 100vh; box-sizing: border-box; padding: 44rpx 24rpx calc(42rpx + env(safe-area-inset-bottom)); background: #f2f5f1; }
+.login-header { display: flex; align-items: center; gap: 18rpx; padding: 18rpx 8rpx; }
+.brand-mark { width: 72rpx; height: 72rpx; display: flex; align-items: center; justify-content: center; border-radius: 20rpx; background: #b8ff5e; color: #18321f; font-size: 46rpx; font-weight: 800; box-shadow: 0 10rpx 24rpx rgba(52, 105, 54, .16); }
+.eyebrow, .form-kicker { color: #69a83c; font-size: 18rpx; font-weight: 700; letter-spacing: 3rpx; }
+.brand-name { margin-top: 6rpx; color: #183e2e; font-size: 28rpx; font-weight: 700; }
+.login-intro { margin: 58rpx 8rpx 28rpx; }
+.intro-title { color: #183e2e; font-size: 46rpx; font-weight: 800; line-height: 1.25; }
+.intro-copy { margin-top: 16rpx; color: #718078; font-size: 25rpx; line-height: 1.65; }
+.feature-row { display: flex; gap: 12rpx; margin: 0 8rpx 28rpx; }
+.feature-row view { flex: 1; padding: 18rpx 16rpx; border: 1rpx solid #dce7de; border-radius: 14rpx; background: #e9f5e5; }
+.feature-row text, .feature-row label { display: block; }
+.feature-row text { color: #69a83c; font-size: 18rpx; font-weight: 700; letter-spacing: 1rpx; }
+.feature-row label { margin-top: 8rpx; color: #315c39; font-size: 22rpx; }
+.form { padding: 32rpx 28rpx; margin: 0; border-radius: 20rpx; }
+.title { margin-top: 10rpx; color: #183e2e; font-size: 38rpx; font-weight: 700; }
+.subtitle { margin: 12rpx 0 28rpx; color: #7d8c85; font-size: 23rpx; line-height: 1.5; }
+.field-label { display: block; margin-top: 20rpx; color: #526159; font-size: 23rpx; font-weight: 600; }
+.input { width: 100%; box-sizing: border-box; border: 1rpx solid #d6dfda; border-radius: 12rpx; padding: 22rpx 18rpx; margin-top: 10rpx; background: #fafcfb; color: #183e2e; }
+.login-button { margin-top: 30rpx; }
+.switch-row { display: flex; justify-content: center; gap: 8rpx; margin-top: 26rpx; font-size: 23rpx; }
+.switch-link { color: #3d8135; font-weight: 700; }
+.logout-button { margin-top: 20rpx; color: #9a4844; background: #fff; border: 1rpx solid #eedbd9; border-radius: 12rpx; font-size: 23rpx; }
+.logout-button::after { border: 0; }
+.login-foot { margin-top: 28rpx; color: #9aa69f; text-align: center; font-size: 20rpx; }

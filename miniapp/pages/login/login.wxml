@@ -1,11 +1,17 @@
-<view class="page">
-  <view class="login-brand"><view class="brand-mark">ϟ</view><view class="eyebrow">CHARGE NETWORK</view></view>
+<view class="login-page">
+  <view class="login-header"><view class="brand-mark">ϟ</view><view><view class="eyebrow">CHARGE NETWORK</view><view class="brand-name">充电用户端</view></view></view>
+  <view class="login-intro"><view class="intro-title">{{registerMode ? '创建你的充电账号' : '每一次充电，清楚可见'}}</view><view class="intro-copy">{{registerMode ? '注册后即可查找站点、选择充电枪并体验完整订单流程。' : '登录后查看附近站点、实时电量和历史订单。'}}</view></view>
+  <view class="feature-row"><view><text>01</text><label>找站点</label></view><view><text>02</text><label>选充电枪</label></view><view><text>03</text><label>看订单</label></view></view>
   <view class="card form">
-    <view class="title">登录充电平台</view>
-    <view class="subtitle">进入运营端，查看站点和设备状态</view>
-    <input class="input" value="{{username}}" placeholder="用户名" bindinput="onUsernameInput" />
-    <input class="input" value="{{password}}" password placeholder="密码" bindinput="onPasswordInput" />
-    <button class="primary" loading="{{loading}}" bindtap="submit">登录</button>
-    <view class="muted hint">当前使用运营人员测试账号，可在输入框中修改。</view>
+    <view class="form-kicker">{{registerMode ? 'CREATE ACCOUNT' : 'WELCOME BACK'}}</view>
+    <view class="title">{{registerMode ? '注册车主账号' : '登录充电平台'}}</view>
+    <view class="subtitle">演示环境使用模拟支付，不会产生真实扣款</view>
+    <label class="field-label">用户名<input class="input" value="{{username}}" placeholder="3-30位字母、数字或下划线" bindinput="onUsernameInput" /></label>
+    <label wx:if="{{registerMode}}" class="field-label">昵称<input class="input" value="{{displayName}}" placeholder="用于订单和站点页面显示" bindinput="onDisplayNameInput" /></label>
+    <label class="field-label">密码<input class="input" value="{{password}}" password placeholder="至少6位" bindinput="onPasswordInput" /></label>
+    <button class="primary login-button" loading="{{loading}}" bindtap="submit">{{registerMode ? '注册并登录' : '登录'}}</button>
+    <view class="switch-row"><text class="muted">{{registerMode ? '已经有账号？' : '第一次使用？'}}</text><text class="switch-link" bindtap="toggleMode">{{registerMode ? '返回登录' : '注册车主账号'}}</text></view>
+    <button wx:if="{{hasSession}}" class="logout-button" bindtap="logout">退出当前账号</button>
   </view>
+  <view class="login-foot">仅用于本项目演示 · 不接入真实微信支付</view>
 </view>
