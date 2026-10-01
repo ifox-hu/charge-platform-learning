@@ -180,7 +180,7 @@ async function initStationMap(allowLocationJump = false) {
       mapInstance = null
       mapElement = null
     }
-    const mapZoom = currentLocation ? 17 : 12
+    const mapZoom = currentLocation ? 17 : 14
     if (!mapInstance) {
       mapInstance = new AMap.Map(container, { zoom: mapZoom, center })
       mapElement = container
