@@ -94,16 +94,19 @@ async function run(action, success) {
 async function refreshAll() {
   await run(async () => {
     const [summary, dependencies, simulator, allStations, stationPage, allChargers, allConnectors, orderPage] = await Promise.all([
-      api.dashboard(), api.dependencies(), api.simulatorStatus(), api.stations(), api.stationPage(stationPagination), api.chargers(), api.connectors(), api.orderPage(orderPagination)
+      api.dashboard(),
+      api.dependencies().catch(() => ({ redis: 'DOWN', rabbitmq: 'DOWN' })),
+      api.simulatorStatus().catch(() => ({ enabled: false, devices: [] })),
+      api.stations(), api.stationPage(stationPagination), api.chargers(), api.connectors(), api.orderPage(orderPagination)
     ])
     dashboard.value = summary; dependencyHealth.value = dependencies; simulatorStatus.value = simulator; stations.value = allStations; stationRows.value = stationPage.rows; chargers.value = allChargers; connectors.value = allConnectors; orders.value = orderPage.rows
     Object.assign(stationPagination, { total: stationPage.total, totalPages: stationPage.totalPages })
     Object.assign(orderPagination, { total: orderPage.total, totalPages: orderPage.totalPages })
     if (isAdmin.value) {
-      const auditPage = await api.auditLogs(auditPagination)
+      const auditPage = await api.auditLogs(auditPagination).catch(() => ({ rows: [], total: 0, totalPages: 0 }))
       auditRows.value = auditPage.rows
       Object.assign(auditPagination, { total: auditPage.total, totalPages: auditPage.totalPages })
-      rabbitOverview.value = await api.rabbitOverview()
+      rabbitOverview.value = await api.rabbitOverview().catch(() => ({ ready: 0, consumers: 0, deadLetters: 0, deadLetterConsumers: 0, queue: '', deadLetterQueue: '', exchange: '', routingKey: '' }))
     }
     if (canManageUsers.value) {
       const userPage = await api.users(userPagination)
