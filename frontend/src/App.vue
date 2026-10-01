@@ -335,55 +335,26 @@ function getAmapLocation() {
     })
   })
 }
-async function browserPositionCandidate(position) {
-  const gpsLocation = [position.coords.longitude, position.coords.latitude]
-  const accuracy = Number(position.coords.accuracy)
-  if (!window.AMap?.convertFrom) return { location: gpsLocation, accuracy }
-  const converted = await new Promise(resolve => {
-    window.AMap.convertFrom(gpsLocation, 'gps', (status, result) => {
-      const point = status === 'complete' && result.locations?.[0]
-      resolve(toLocationArray(point))
-    })
-  })
-  return { location: converted || gpsLocation, accuracy }
-}
-function collectBrowserLocation() {
-  return new Promise(resolve => {
-    if (!navigator.geolocation) return resolve(null)
-    let watchId
-    let finished = false
-    let bestCandidate = null
-    const finish = candidate => {
-      if (finished) return
-      finished = true
-      if (watchId != null) navigator.geolocation.clearWatch(watchId)
-      window.clearTimeout(timer)
-      resolve(candidate || bestCandidate)
-    }
-    const onPosition = position => {
-      browserPositionCandidate(position).then(candidate => {
-        if (!candidate || finished) return
-        if (!bestCandidate || candidate.accuracy < bestCandidate.accuracy) bestCandidate = candidate
-        // Windows may improve a network estimate after the first callback.
-        if (candidate.accuracy <= 100) finish(candidate)
-      }).catch(() => {})
-    }
-    const onError = () => finish(null)
-    const timer = window.setTimeout(() => finish(null), 15000)
-    watchId = navigator.geolocation.watchPosition(onPosition, onError, {
-      enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 0
-    })
-  })
-}
 async function getBrowserLocation(allowLocationJump = false) {
   if (locationRequestInFlight) return locationRequestInFlight
   locationRequestInFlight = (async () => {
     // Browser GPS/Wi-Fi positioning is the only source suitable for the
     // initial view. AMap Geolocation can fall back to IP positioning on desktop.
     if (navigator.geolocation) {
-      const browserLocation = await collectBrowserLocation()
+      const browserLocation = await new Promise(resolve => {
+        navigator.geolocation.getCurrentPosition(position => {
+          const gpsLocation = [position.coords.longitude, position.coords.latitude]
+          const finish = converted => resolve({
+            location: converted || gpsLocation,
+            accuracy: Number(position.coords.accuracy)
+          })
+          if (!window.AMap?.convertFrom) return finish(gpsLocation)
+          window.AMap.convertFrom(gpsLocation, 'gps', (status, result) => {
+            const converted = status === 'complete' && result.locations?.[0]
+            finish(toLocationArray(converted))
+          })
+        }, () => resolve(null), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 })
+      })
       const location = acceptLocation(browserLocation, allowLocationJump)
       if (location) {
         mapLocationLabel.value = '已通过浏览器高精度定位'
@@ -402,7 +373,7 @@ async function getBrowserLocation(allowLocationJump = false) {
     mapLocationLabel.value = lastTrustedLocation
       ? '定位精度不足，保留上次位置'
       : navigator.geolocation
-        ? demoMode ? '未获得可信系统定位，请检查 Windows 位置服务和浏览器权限' : '定位失败，使用默认位置'
+        ? demoMode ? '未获得可信 GPS，使用演示默认位置' : '定位失败，使用默认位置'
         : '浏览器不支持定位'
     return lastTrustedLocation
   })()
